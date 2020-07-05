@@ -1,0 +1,13 @@
+enclave {
+    
+    from "sgx_tsgxssl.edl" import *;
+
+    untrusted {
+    };
+
+
+    trusted {
+        public void teste_ecall();
+ 
+    };
+};
