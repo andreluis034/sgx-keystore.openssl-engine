@@ -1,5 +1,7 @@
 #include <openssl/engine.h>
 #include <string.h>
+#include <sys/file.h>
+#include <sys/stat.h>
 #include "engine_id.h"
 #include "methods.h"
 #include "libsgx.h"
@@ -32,8 +34,33 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     (void)ui_method;
     (void)callback_data;
 #else
-    fprintf(stderr, "keystore_loadkey(%p, \"%s\", %p, %p)", e, key_id, ui_method, callback_data);
+    fprintf(stderr, "keystore_loadkey(%p, \"%s\", %p, %p)\n", e, key_id, ui_method, callback_data);
 #endif
+    //The strncmp function compares not more than n characters (characters that follow a null character 
+    // are not compared) from the array pointed to by s1 to the array pointed to by s2."
+    if (key_id == NULL || strncmp("sgxkeystore:", key_id, strlen("sgxkeystore:") != 0))
+    {
+        fprintf(stderr, "Invalid key \n");
+        return NULL;
+    }
+    const char* key_path = key_id + strlen("sgxkeystore:");
+
+    printf("loading key: %s\n", key_path);
+    FILE* fd  = fopen(key_path, "rb");
+    if (fd == NULL)
+    {
+        fprintf(stderr, "Failed to open file from disk\n");
+        return NULL;
+    }
+
+    struct stat st;
+    stat(key_path, &st);
+    size_t size = st.st_size;
+
+    char* buffer = malloc(size);
+    size_t read = fread(buffer, 1, size, fd);
+
+    fclose(fd);
 
    /* sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("android.security.keystore"));
@@ -119,8 +146,8 @@ static int engine_init(ENGINE *engine)
         return 0;
     
     return 1;
-
 } 
+
 //This function on engine disable
 static int engine_finish(ENGINE *engine)
 {
@@ -133,6 +160,7 @@ static int engine_finish(ENGINE *engine)
     //TODO: Unload all keys from memory
     return 1;
 }
+
 //called on engine destruction
 static int engine_destroy(ENGINE *engine)
 {
