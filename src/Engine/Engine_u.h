@@ -16,6 +16,10 @@
 extern "C" {
 #endif
 
+#ifndef OCALL_PRINT_STRING_DEFINED__
+#define OCALL_PRINT_STRING_DEFINED__
+void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_print_string, (const char* str));
+#endif
 #ifndef U_SGXSSL_FTIME_DEFINED__
 #define U_SGXSSL_FTIME_DEFINED__
 void SGX_UBRIDGE(SGX_NOCONVENTION, u_sgxssl_ftime, (void* timeptr, uint32_t timeb_len));

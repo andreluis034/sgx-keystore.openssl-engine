@@ -1,6 +1,5 @@
 #include "libsgx.h"
-CRYPTO_RWLOCK* rwlock;
-
+#include <unistd.h>
 typedef struct _sgx_errlist_t {
     sgx_status_t err;
     const char *msg;
@@ -86,22 +85,50 @@ static sgx_errlist_t sgx_errlist[] = {
     },
 };
 
+struct SGX_Enclave_st {
+#if OPENSSL_VERSION_NUMBER >= 0x10100004L && !defined(LIBRESSL_VERSION_NUMBER)
+	CRYPTO_RWLOCK *rwlock;
+#else
+	int rwlock;
+#endif
+	const char* enclave_binary_path;
+	sgx_enclave_id_t enclave_id;
+    pid_t pid;
+
+};
 
 
-
-sgx_status_t sgx_init_enclave(const char* enclave_file, sgx_enclave_id_t* encalve_id_out)
+sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave_out)
 {
+    if (enclave_out == NULL)
+    {
+        return SGX_ERROR_INVALID_PARAMETER;
+    }
+    *enclave_out = NULL;
+    SGX_ENCLAVE* enclave = (SGX_ENCLAVE*)malloc(sizeof(SGX_ENCLAVE));
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
     sgx_enclave_id_t enclave_id = 0;
+ 
+
     /* Call sgx_create_enclave to initialize an enclave instance */
     /* Debug Support: set 2nd parameter to 1 */
     ret = sgx_create_enclave(enclave_file, SGX_DEBUG_FLAG, NULL, NULL, &enclave_id, NULL);
     if (ret != SGX_SUCCESS) {
-        *encalve_id_out = 0;
+        free(enclave);
         return ret;
     }
-    *encalve_id_out = enclave_id;
-    rwlock = CRYPTO_THREAD_lock_new();
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100004L && !defined(LIBRESSL_VERSION_NUMBER)
+    enclave->rwlock = CRYPTO_THREAD_lock_new();    
+#else
+	enclave->rwlock  = CRYPTO_get_dynlock_create_callback() ?
+		CRYPTO_get_new_dynlockid() : 0;
+#endif
+
+    enclave->enclave_binary_path = enclave_file;
+    enclave->enclave_id = enclave_id;
+    enclave->pid = getpid();
+    *enclave_out = enclave;
     return SGX_SUCCESS;
 }
 
@@ -118,4 +145,12 @@ const char* sgx_get_error_message(sgx_status_t status)
     }
     return NULL;
 
+}
+
+sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave)
+{
+    sgx_enclave_id_t id = enclave->enclave_id;
+    printf("Destroying enclave %d\n", id);
+   // free(enclave);
+    return sgx_destroy_enclave(id);
 }

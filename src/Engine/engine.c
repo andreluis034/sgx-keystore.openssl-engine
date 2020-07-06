@@ -1,7 +1,8 @@
 #include <openssl/engine.h>
+#include <string.h>
 #include "engine_id.h"
 #include "methods.h"
-#include <string.h>
+#include "libsgx.h"
 /*
  * ex_data index for keystore's key alias.
  */
@@ -81,10 +82,76 @@ static const ENGINE_CMD_DEFN keystore_cmd_defns[] = {
     {0, NULL, NULL, 0}
 };
 
+static int sgxkeystore_idx = -1;
+static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
+{
+    fprintf(stderr, "get_enclave_from_engine\n");
+    SGX_ENCLAVE* enclave = NULL;
+	if (sgxkeystore_idx < 0) {
+		sgxkeystore_idx = ENGINE_get_ex_new_index(0, ENGINE_ID, NULL, NULL, 0);
+		if (sgxkeystore_idx < 0)
+			return NULL;
+		enclave = NULL;
+	} else {
+		enclave = ENGINE_get_ex_data(engine, sgxkeystore_idx);
+	}
+	if (!enclave) {
+        sgx_status_t status = sgx_init_enclave(ENCLAVE_PATH, &enclave);
+        fprintf(stderr, "sgx_init_enclave returned %d\n", status);
+        if (status == SGX_SUCCESS)
+        {
+		    ENGINE_set_ex_data(engine, sgxkeystore_idx, enclave);
+            return enclave;
+        }
+        fprintf(stderr, "sgx_init_enclave failed\n");
+        fprintf(stderr, "%s\n", sgx_get_error_message(status));
+        return NULL;
+	}
+	return enclave;
+}
 
+static int engine_init(ENGINE *engine)
+{
+    fprintf(stderr, "engine_init\n");
+    SGX_ENCLAVE* enclave = NULL;
+    enclave = get_enclave_from_engine(engine);
+    if (!enclave)
+        return 0;
+    
+    return 1;
 
-
-
+} 
+//This function on engine disable
+static int engine_finish(ENGINE *engine)
+{
+    fprintf(stderr, "engine_finish\n");
+    //Unload all keys from the enclave
+    SGX_ENCLAVE* enclave = NULL;
+    enclave = get_enclave_from_engine(engine);
+    if (!enclave)
+        return 0;
+    //TODO: Unload all keys from memory
+    return 1;
+}
+//called on engine destruction
+static int engine_destroy(ENGINE *engine)
+{
+    fprintf(stderr, "engine_destroy\n");
+    SGX_ENCLAVE* enclave = NULL;
+    enclave = get_enclave_from_engine(engine);
+    if (!enclave)
+        return 0;
+    sgx_status_t status = sgx_destroy_enclave_wrapper(enclave);
+	ENGINE_set_ex_data(engine, sgxkeystore_idx, NULL);
+    if (status != SGX_SUCCESS)
+    {
+        fprintf(stderr, "sgx_destroy_enclave_wrapper failed\n");
+        fprintf(stderr, "%s\n", sgx_get_error_message(status));
+        return 0;
+    }
+    
+    return 1;
+}
 
 static int keystore_engine_setup(ENGINE* e) {
     fprintf(stderr, "keystore_engine_setup\n");
@@ -93,6 +160,9 @@ static int keystore_engine_setup(ENGINE* e) {
 
     if (!ENGINE_set_id(e, ENGINE_ID)
             || !ENGINE_set_name(e, ENGINE_NAME)
+            || !ENGINE_set_init_function(e, engine_init)
+            || !ENGINE_set_finish_function(e, engine_finish)
+            || !ENGINE_set_destroy_function(e, engine_destroy)
             || !ENGINE_set_load_privkey_function(e, keystore_loadkey)
             || !ENGINE_set_load_pubkey_function(e, keystore_loadkey)
             || !ENGINE_set_flags(e, 0)

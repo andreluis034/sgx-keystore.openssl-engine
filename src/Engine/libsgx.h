@@ -18,8 +18,10 @@ typedef struct SGX_key_st {
 	sgx_enclave_id_t enclade_id;
 } SGX_KEY;
 
-
+typedef struct SGX_Enclave_st SGX_ENCLAVE;
 
 const char* sgx_get_error_message(sgx_status_t status);
 
-sgx_status_t sgx_init_enclave(const char* enclave_file, sgx_enclave_id_t* encalve_id_out);
+sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave);
+
+sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave);
