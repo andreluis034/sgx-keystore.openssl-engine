@@ -9,6 +9,8 @@ enclave {
 
     trusted {
         public void teste_ecall();
+
+        public int sgx_rsa_load_key([in, size=length] const unsigned char * keybuffer, int length, [in,string ]const char* path);
  
     };
 };

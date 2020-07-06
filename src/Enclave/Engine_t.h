@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 void teste_ecall(void);
+int sgx_rsa_load_key(const unsigned char* keybuffer, int length, const char* path);
 
 sgx_status_t SGX_CDECL ocall_print_string(const char* str);
 sgx_status_t SGX_CDECL u_sgxssl_ftime(void* timeptr, uint32_t timeb_len);
