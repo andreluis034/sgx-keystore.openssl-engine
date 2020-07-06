@@ -1,5 +1,7 @@
 #include "libsgx.h"
 #include <unistd.h>
+#include <sys/stat.h>
+
 typedef struct _sgx_errlist_t {
     sgx_status_t err;
     const char *msg;
@@ -154,3 +156,35 @@ sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave)
    // free(enclave);
     return sgx_destroy_enclave(id);
 }
+
+RSA* sgx_get_rsa(SGX_KEY* sgx_key)
+{
+
+
+}
+
+SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path)
+{
+    //TODO check if already loaded
+    SGX_KEY* sgx_key;
+    FILE* fd  = fopen(key_path, "rb");
+    if (fd == NULL)
+    {
+        fprintf(stderr, "Failed to open file from disk\n");
+        return NULL;
+    }
+
+    struct stat st;
+    stat(key_path, &st);
+    size_t size = st.st_size;
+
+    char* buffer = malloc(size);
+    size_t read = fread(buffer, 1, size, fd);
+
+    fclose(fd);
+    sgx_key = OPENSSL_zalloc(sizeof(SGX_KEY));
+    OPENSSL_strlcpy(sgx_key->label, key_path, BUFSIZ);
+    sgx_key->enclave = enclave;
+
+}
+

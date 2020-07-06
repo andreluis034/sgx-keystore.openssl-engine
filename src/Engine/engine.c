@@ -1,7 +1,6 @@
 #include <openssl/engine.h>
 #include <string.h>
 #include <sys/file.h>
-#include <sys/stat.h>
 #include "engine_id.h"
 #include "methods.h"
 #include "libsgx.h"
@@ -46,21 +45,6 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     const char* key_path = key_id + strlen("sgxkeystore:");
 
     printf("loading key: %s\n", key_path);
-    FILE* fd  = fopen(key_path, "rb");
-    if (fd == NULL)
-    {
-        fprintf(stderr, "Failed to open file from disk\n");
-        return NULL;
-    }
-
-    struct stat st;
-    stat(key_path, &st);
-    size_t size = st.st_size;
-
-    char* buffer = malloc(size);
-    size_t read = fread(buffer, 1, size, fd);
-
-    fclose(fd);
 
    /* sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("android.security.keystore"));
