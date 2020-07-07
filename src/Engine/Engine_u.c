@@ -1,6 +1,28 @@
 #include "Engine_u.h"
 #include <errno.h>
 
+typedef struct ms_sgx_rsa_get_n_t {
+	int ms_retval;
+	int ms_key_id;
+	char* ms_output;
+	int ms_length;
+} ms_sgx_rsa_get_n_t;
+
+typedef struct ms_sgx_rsa_get_e_t {
+	int ms_retval;
+	int ms_key_id;
+	char* ms_output;
+	int ms_length;
+} ms_sgx_rsa_get_e_t;
+
+typedef struct ms_sgx_rsa_load_key_t {
+	int ms_retval;
+	const unsigned char* ms_keybuffer;
+	int ms_length;
+	const char* ms_path;
+	size_t ms_path_len;
+} ms_sgx_rsa_load_key_t;
+
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
 } ms_ocall_print_string_t;
@@ -113,6 +135,50 @@ sgx_status_t teste_ecall(sgx_enclave_id_t eid)
 {
 	sgx_status_t status;
 	status = sgx_ecall(eid, 0, &ocall_table_Engine, NULL);
+	return status;
+}
+
+sgx_status_t sgx_init_rsa_lock(sgx_enclave_id_t eid)
+{
+	sgx_status_t status;
+	status = sgx_ecall(eid, 1, &ocall_table_Engine, NULL);
+	return status;
+}
+
+sgx_status_t sgx_rsa_get_n(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length)
+{
+	sgx_status_t status;
+	ms_sgx_rsa_get_n_t ms;
+	ms.ms_key_id = key_id;
+	ms.ms_output = output;
+	ms.ms_length = length;
+	status = sgx_ecall(eid, 2, &ocall_table_Engine, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t sgx_rsa_get_e(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length)
+{
+	sgx_status_t status;
+	ms_sgx_rsa_get_e_t ms;
+	ms.ms_key_id = key_id;
+	ms.ms_output = output;
+	ms.ms_length = length;
+	status = sgx_ecall(eid, 3, &ocall_table_Engine, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t sgx_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path)
+{
+	sgx_status_t status;
+	ms_sgx_rsa_load_key_t ms;
+	ms.ms_keybuffer = keybuffer;
+	ms.ms_length = length;
+	ms.ms_path = path;
+	ms.ms_path_len = path ? strlen(path) + 1 : 0;
+	status = sgx_ecall(eid, 4, &ocall_table_Engine, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 

@@ -27,6 +27,20 @@
 )
 
 
+typedef struct ms_sgx_rsa_get_n_t {
+	int ms_retval;
+	int ms_key_id;
+	char* ms_output;
+	int ms_length;
+} ms_sgx_rsa_get_n_t;
+
+typedef struct ms_sgx_rsa_get_e_t {
+	int ms_retval;
+	int ms_key_id;
+	char* ms_output;
+	int ms_length;
+} ms_sgx_rsa_get_e_t;
+
 typedef struct ms_sgx_rsa_load_key_t {
 	int ms_retval;
 	const unsigned char* ms_keybuffer;
@@ -77,6 +91,110 @@ static sgx_status_t SGX_CDECL sgx_teste_ecall(void* pms)
 	sgx_status_t status = SGX_SUCCESS;
 	if (pms != NULL) return SGX_ERROR_INVALID_PARAMETER;
 	teste_ecall();
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_sgx_init_rsa_lock(void* pms)
+{
+	sgx_status_t status = SGX_SUCCESS;
+	if (pms != NULL) return SGX_ERROR_INVALID_PARAMETER;
+	sgx_init_rsa_lock();
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_n(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_sgx_rsa_get_n_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_sgx_rsa_get_n_t* ms = SGX_CAST(ms_sgx_rsa_get_n_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	char* _tmp_output = ms->ms_output;
+	int _tmp_length = ms->ms_length;
+	size_t _len_output = _tmp_length;
+	char* _in_output = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_output, _len_output);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_output != NULL && _len_output != 0) {
+		if ( _len_output % sizeof(*_tmp_output) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_output = (char*)malloc(_len_output)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_output, 0, _len_output);
+	}
+
+	ms->ms_retval = sgx_rsa_get_n(ms->ms_key_id, _in_output, _tmp_length);
+	if (_in_output) {
+		if (memcpy_s(_tmp_output, _len_output, _in_output, _len_output)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_output) free(_in_output);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_e(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_sgx_rsa_get_e_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_sgx_rsa_get_e_t* ms = SGX_CAST(ms_sgx_rsa_get_e_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	char* _tmp_output = ms->ms_output;
+	int _tmp_length = ms->ms_length;
+	size_t _len_output = _tmp_length;
+	char* _in_output = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_output, _len_output);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_output != NULL && _len_output != 0) {
+		if ( _len_output % sizeof(*_tmp_output) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_output = (char*)malloc(_len_output)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_output, 0, _len_output);
+	}
+
+	ms->ms_retval = sgx_rsa_get_e(ms->ms_key_id, _in_output, _tmp_length);
+	if (_in_output) {
+		if (memcpy_s(_tmp_output, _len_output, _in_output, _len_output)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_output) free(_in_output);
 	return status;
 }
 
@@ -153,28 +271,31 @@ err:
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[2];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[5];
 } g_ecall_table = {
-	2,
+	5,
 	{
 		{(void*)(uintptr_t)sgx_teste_ecall, 0, 0},
+		{(void*)(uintptr_t)sgx_sgx_init_rsa_lock, 0, 0},
+		{(void*)(uintptr_t)sgx_sgx_rsa_get_n, 0, 0},
+		{(void*)(uintptr_t)sgx_sgx_rsa_get_e, 0, 0},
 		{(void*)(uintptr_t)sgx_sgx_rsa_load_key, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[7][2];
+	uint8_t entry_table[7][5];
 } g_dyn_entry_table = {
 	7,
 	{
-		{0, 0, },
-		{0, 0, },
-		{0, 0, },
-		{0, 0, },
-		{0, 0, },
-		{0, 0, },
-		{0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
 	}
 };
 

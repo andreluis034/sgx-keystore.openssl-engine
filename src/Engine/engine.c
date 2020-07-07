@@ -17,13 +17,14 @@ static pthread_once_t key_handle_control = PTHREAD_ONCE_INIT;
 
 
 
+static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine);
 
 /**
  * Called to initialize RSA's ex_data for the key_id handle. This should
  * only be called when protected by a lock.
  */
 static void init_key_handle() {
-    rsa_key_handle = RSA_get_ex_new_index(0, NULL, keyhandle_new, keyhandle_dup, keyhandle_free);
+    rsa_key_handle = RSA_get_ex_new_index(0, ENGINE_ID " rsa", keyhandle_new, keyhandle_dup, keyhandle_free);
 }
 
 
@@ -44,49 +45,33 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     }
     const char* key_path = key_id + strlen("sgxkeystore:");
 
-    printf("loading key: %s\n", key_path);
+    fprintf(stderr, "loading key: %s\n", key_path);
+    SGX_ENCLAVE* enclave = get_enclave_from_engine(e);
 
-   /* sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> binder = sm->getService(String16("android.security.keystore"));
-    sp<IKeystoreService> service = interface_cast<IKeystoreService>(binder);
-
-    if (service == NULL) {
-        fprintf(stderr, "could not contact keystore");
-        return 0;
-    }*/
-
-    uint8_t *pubkey = NULL;
-    size_t pubkeyLen;
-    int32_t ret = -1; //service->get_pubkey(String16(key_id), &pubkey, &pubkeyLen);
-    if (ret < 0) {
-        fprintf(stderr, "could not contact keystore");
-        free(pubkey);
-        return NULL;
-    } else if (ret != 0) {
-        fprintf(stderr, "keystore reports error: %d", ret);
-        free(pubkey);
+    if (enclave == NULL)
+    {
+        fprintf(stderr, "[-] Failed to get SGX_ENCLAVE from engine \n");
         return NULL;
     }
+    
 
-    const unsigned char* tmp = (const unsigned char*)pubkey;
-    EVP_PKEY* pkey = d2i_PUBKEY(NULL, &tmp, pubkeyLen);
-    free(pubkey);
-    if (pkey == NULL) {
-        fprintf(stderr, "Cannot convert pubkey");
+    SGX_KEY* sgx_key = sgx_load_key(enclave, key_path);
+
+    if (sgx_key == NULL)
+    {
+        fprintf(stderr, "[-] Failed to load SGX_KEY \n");
+        return NULL;
+    }
+    
+
+    EVP_PKEY* pk = sgx_key->evp_key = sgx_get_evp_key_rsa(sgx_key);
+    if(pk == NULL)
+    {
+        fprintf(stderr, "[-] Failed to load SGX_KEY \n");
         return NULL;
     }
 
-    switch (EVP_PKEY_base_id(pkey)) {
-    case EVP_PKEY_RSA: {
-        rsa_pkey_setup(e, pkey, key_id);
-        break;
-    }
-    default:
-        fprintf(stderr, "Unsupported key type %d", EVP_PKEY_base_id(pkey));
-        return NULL;
-    }
-
-    return pkey;
+    return pk;
 }
 
 static const ENGINE_CMD_DEFN keystore_cmd_defns[] = {
@@ -161,6 +146,7 @@ static int engine_destroy(ENGINE *engine)
         fprintf(stderr, "%s\n", sgx_get_error_message(status));
         return 0;
     }
+    printf("Destroyed enclave\n");
     
     return 1;
 }

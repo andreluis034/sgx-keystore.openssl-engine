@@ -1,3 +1,4 @@
+#pragma once
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/bn.h>
@@ -30,4 +31,4 @@ SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path);
 
 
 //check pkcs11_get_evp_key_rsa on libp11
-EVP_PKEY* sgx_get_evp_key(SGX_KEY* sgx_key);
+RSA* sgx_key_get_rsa(SGX_KEY* sgx_key);

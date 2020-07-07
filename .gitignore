@@ -57,3 +57,6 @@ Engine_old
 
 #VS Code
 .vscode
+src/foo
+src/testkey.pem
+src/testkey.pem.pub

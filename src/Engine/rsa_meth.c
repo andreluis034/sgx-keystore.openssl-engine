@@ -3,7 +3,7 @@
 #include <string.h>
 #include "methods.h"
 #include "engine_id.h"
-
+#include "libsgx.h"
 
 
 int keystore_rsa_priv_enc(int flen, const unsigned char* from, unsigned char* to, RSA* rsa,
@@ -164,31 +164,36 @@ static RSA_METHOD * get_rsa_method() {
     RSA_meth_set1_name(ops, ENGINE_ID);
     RSA_meth_set_priv_enc(ops, keystore_rsa_priv_enc);
     RSA_meth_set_priv_dec(ops, keystore_rsa_priv_dec);
-    RSA_meth_set_flags(ops, RSA_FLAG_EXT_PKEY | RSA_FLAG_NO_BLINDING);
+    //TODO:
+	//RSA_meth_set_finish(ops, pkcs11_rsa_free_method);
+ //   RSA_meth_set_flags(ops, RSA_FLAG_EXT_PKEY);
 
     return ops;
 }
 
-int rsa_pkey_setup(ENGINE *e, EVP_PKEY *pkey, const char *key_id) {
-    RSA* rsa = EVP_PKEY_get1_RSA(pkey);
-    if (!RSA_set_ex_data(rsa, rsa_key_handle, (void*)strdup(key_id))) { //TODO create a SGX_KEY struct
-        fprintf(stderr, "Could not set ex_data for loaded RSA key");
-        return 0;
-    }
 
-    RSA_set_method(rsa, get_rsa_method());
-    RSA_blinding_off(rsa);
+EVP_PKEY* sgx_get_evp_key_rsa(SGX_KEY* sgx_key)
+{
+    RSA* rsa;
+    EVP_PKEY* pk;
+    rsa = sgx_key_get_rsa(sgx_key);
 
-    /*
-     * "RSA_set_ENGINE()" should probably be an OpenSSL API. Since it isn't,
-     * and EVP_PKEY_free() calls ENGINE_finish(), we need to call ENGINE_init()
-     * here.
-     */
-    //ENGINE_init(e);
-    RSA_set_flags(rsa, RSA_FLAG_EXT_PKEY);
-    //rsa->engine = e;
+	if (!rsa)
+		return NULL;
+	pk = EVP_PKEY_new();
+	if (!pk) {
+		RSA_free(rsa);
+		return NULL;
+	}
+	EVP_PKEY_set1_RSA(pk, rsa); /* Also increments the rsa ref count */
 
-    return 1;
+	RSA_set_method(rsa, get_rsa_method());
+	RSA_set_flags(rsa, RSA_FLAG_EXT_PKEY);
+    RSA_set_ex_data(rsa, rsa_key_handle, sgx_key);
+
+	RSA_free(rsa); /* Drops our reference to it */
+	return pk;
+
 }
 
 int rsa_register(ENGINE* e) {

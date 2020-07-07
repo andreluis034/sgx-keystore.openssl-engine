@@ -46,6 +46,10 @@ int SGX_UBRIDGE(SGX_CDECL, sgx_thread_set_multiple_untrusted_events_ocall, (cons
 #endif
 
 sgx_status_t teste_ecall(sgx_enclave_id_t eid);
+sgx_status_t sgx_init_rsa_lock(sgx_enclave_id_t eid);
+sgx_status_t sgx_rsa_get_n(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
+sgx_status_t sgx_rsa_get_e(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
+sgx_status_t sgx_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path);
 
 #ifdef __cplusplus
 }

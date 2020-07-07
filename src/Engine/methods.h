@@ -24,8 +24,9 @@
  */
 
 /* For ENGINE method registration purposes. */
+#pragma once
 #include <openssl/engine.h>
-
+#include "libsgx.h"
 
 extern const char* kKeystoreEngineId;
 
@@ -49,3 +50,4 @@ void ex_data_clear_free(void *);
 /* RSA */
 int rsa_register(ENGINE *);
 int rsa_pkey_setup(ENGINE *, EVP_PKEY*, const char*);
+EVP_PKEY* sgx_get_evp_key_rsa(SGX_KEY* sgx_key);
