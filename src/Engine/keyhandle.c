@@ -1,11 +1,12 @@
 #include "methods.h"
+#include "libsgx.h"
 #include <string.h>
 /**
  * Makes sure the ex_data for the keyhandle is initially set to NULL.
  */
 void keyhandle_new(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
                            int idx, long argl, void *argp) {
-
+    printf("[>] %s\n", __FUNCTION__);
     (void)parent;
     (void)ptr;
     (void)ad;
@@ -20,15 +21,16 @@ void keyhandle_new(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
  */
 void keyhandle_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
                              int idx, long argl, void *argp) {
+    printf("[>] %s\n", __FUNCTION__);
     (void)parent;
     (void)ad;
     (void)idx;
     (void)argl;
     (void)argp;
 
-    char* keyhandle = (char*)ptr;
+    SGX_KEY* keyhandle = (SGX_KEY*)ptr;
     if (keyhandle != NULL) {
-        free(keyhandle);
+        sgx_unload_key(keyhandle);
     }
 }
 
@@ -37,6 +39,7 @@ void keyhandle_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
  */
 int keyhandle_dup(CRYPTO_EX_DATA *to, const CRYPTO_EX_DATA *from,
                            void *from_d, int idx, long argl, void *argp) {
+    printf("[>] %s\n", __FUNCTION__);
     // This appears to be a bug in OpenSSL.
     void** ptr = (void**)(from_d);
     char* keyhandle = (char*)(*ptr);
@@ -51,16 +54,19 @@ int keyhandle_dup(CRYPTO_EX_DATA *to, const CRYPTO_EX_DATA *from,
 }
 
 void *ex_data_dup(void *data) {
+    printf("[>] %s\n", __FUNCTION__);
     char* keyhandle = (char*)data;
     return strdup(keyhandle);
 }
 
 void ex_data_free(void *data) {
+    printf("[>] %s\n", __FUNCTION__);
     char* keyhandle = (char*)data;
     free(keyhandle);
 }
 
 void ex_data_clear_free(void *data) {
+    printf("[>] %s\n", __FUNCTION__);
     char* keyhandle = (char*)data;
     memset(data, '\0', strlen(keyhandle));
     free(keyhandle);

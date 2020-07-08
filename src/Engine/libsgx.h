@@ -15,7 +15,7 @@ typedef struct SGX_key_st {
 	const char label[BUFSIZ];
 	unsigned char isPrivate;	/**< private key present? */
 	EVP_PKEY *evp_key;		/**< initially NULL, need to call PKCS11_load_key */
-	SGX_ENCLAVE* enclave;
+	const SGX_ENCLAVE* enclave;
 } SGX_KEY;
 
 
@@ -25,7 +25,10 @@ sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave);
 
 sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave);
 
+int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding);
 
+
+void sgx_unload_key(SGX_KEY* key);
 SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path);
 
 

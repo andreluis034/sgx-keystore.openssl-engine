@@ -123,7 +123,7 @@ sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave_ou
     }
     printf("Created enclave with id %ld\n", enclave_id);
     teste_ecall(enclave_id);
-    sgx_init_rsa_lock(enclave_id);
+    enclave_init_rsa_lock(enclave_id);
 #if OPENSSL_VERSION_NUMBER >= 0x10100004L && !defined(LIBRESSL_VERSION_NUMBER)
     enclave->rwlock = CRYPTO_THREAD_lock_new();    
 #else
@@ -168,19 +168,19 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
     sgx_status_t status;
     BIGNUM *bn_n, *bn_e;
     RSA* rsa;
-    status = sgx_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
+    status = enclave_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
     if (status != SGX_SUCCESS || length == 0)
         return NULL;
 
     rsa_n = OPENSSL_zalloc(length + 1);    
-    status = sgx_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_n, length + 1);
+    status = enclave_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_n, length + 1);
     if (status != SGX_SUCCESS || length == 0)
     {
         OPENSSL_free(rsa_n);
         return NULL;
     }
 
-    status = sgx_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
+    status = enclave_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
     if (status != SGX_SUCCESS || length == 0)
     {
         OPENSSL_free(rsa_n);
@@ -188,7 +188,7 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
     }
 
     rsa_e = OPENSSL_zalloc(length + 1);    
-    status = sgx_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_e, length + 1);
+    status = enclave_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_e, length + 1);
     if (status != SGX_SUCCESS || length == 0)
     {
         OPENSSL_free(rsa_n);
@@ -224,6 +224,56 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
     return rsa;
 
 }
+
+
+//currently only support RSA
+int sgx_get_key_size(SGX_KEY* key)
+{
+    EVP_PKEY *evp_key = key->evp_key;
+    const RSA* rsa;
+    if(evp_key == NULL)
+        return 0;
+    rsa = EVP_PKEY_get0_RSA(evp_key);
+    if (rsa == NULL)
+        return 0;
+
+    return RSA_size(rsa);    
+}
+int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+{
+    sgx_status_t status;
+    int ret;
+    if (key == NULL)
+        return -1;
+    
+    int tlen = sgx_get_key_size(key);   
+    if(tlen == 0)
+        return -1;
+    status = enclave_private_encrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
+    if(status != SGX_SUCCESS)
+    {
+        fprintf(stderr, "enclave_private_encrypt ecall status: 0x%x\n", status);
+        return -1;
+    }
+    return ret;
+
+    
+}
+
+
+void sgx_unload_key(SGX_KEY* key)
+{
+    if(key == NULL)
+        return;
+    sgx_status_t status = enclave_unload_key_from_enclave(key->enclave->enclave_id, key->keyId);
+    if(status != SGX_SUCCESS)
+    {
+        printf("[-] Failed to unload SGX_KEY %x\n", status);
+    }
+    free(key);
+
+}
+
 SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path)
 {
     //TODO check if already loaded
@@ -254,7 +304,7 @@ SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path)
 
     int key_slot = -1;
     
-    sgx_status_t status = sgx_rsa_load_key(enclave->enclave_id, &key_slot, buffer, read, key_path);
+    sgx_status_t status = enclave_rsa_load_key(enclave->enclave_id, &key_slot, buffer, read, key_path);
     if (status != SGX_SUCCESS)
     {
         OPENSSL_free(sgx_key);

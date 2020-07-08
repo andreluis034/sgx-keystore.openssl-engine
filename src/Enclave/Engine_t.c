@@ -27,27 +27,41 @@
 )
 
 
-typedef struct ms_sgx_rsa_get_n_t {
+typedef struct ms_enclave_unload_key_from_enclave_t {
+	int ms_key_id;
+} ms_enclave_unload_key_from_enclave_t;
+
+typedef struct ms_enclave_private_encrypt_t {
+	int ms_retval;
+	int ms_flen;
+	const unsigned char* ms_frm;
+	int ms_tlen;
+	unsigned char* ms_to;
+	int ms_key_id;
+	int ms_padding;
+} ms_enclave_private_encrypt_t;
+
+typedef struct ms_enclave_rsa_get_n_t {
 	int ms_retval;
 	int ms_key_id;
 	char* ms_output;
 	int ms_length;
-} ms_sgx_rsa_get_n_t;
+} ms_enclave_rsa_get_n_t;
 
-typedef struct ms_sgx_rsa_get_e_t {
+typedef struct ms_enclave_rsa_get_e_t {
 	int ms_retval;
 	int ms_key_id;
 	char* ms_output;
 	int ms_length;
-} ms_sgx_rsa_get_e_t;
+} ms_enclave_rsa_get_e_t;
 
-typedef struct ms_sgx_rsa_load_key_t {
+typedef struct ms_enclave_rsa_load_key_t {
 	int ms_retval;
 	const unsigned char* ms_keybuffer;
 	int ms_length;
 	const char* ms_path;
 	size_t ms_path_len;
-} ms_sgx_rsa_load_key_t;
+} ms_enclave_rsa_load_key_t;
 
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
@@ -94,22 +108,112 @@ static sgx_status_t SGX_CDECL sgx_teste_ecall(void* pms)
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_sgx_init_rsa_lock(void* pms)
+static sgx_status_t SGX_CDECL sgx_enclave_init_rsa_lock(void* pms)
 {
 	sgx_status_t status = SGX_SUCCESS;
 	if (pms != NULL) return SGX_ERROR_INVALID_PARAMETER;
-	sgx_init_rsa_lock();
+	enclave_init_rsa_lock();
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_n(void* pms)
+static sgx_status_t SGX_CDECL sgx_enclave_unload_key_from_enclave(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_sgx_rsa_get_n_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_unload_key_from_enclave_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_sgx_rsa_get_n_t* ms = SGX_CAST(ms_sgx_rsa_get_n_t*, pms);
+	ms_enclave_unload_key_from_enclave_t* ms = SGX_CAST(ms_enclave_unload_key_from_enclave_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+
+
+
+	enclave_unload_key_from_enclave(ms->ms_key_id);
+
+
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_enclave_private_encrypt(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_private_encrypt_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_enclave_private_encrypt_t* ms = SGX_CAST(ms_enclave_private_encrypt_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	const unsigned char* _tmp_frm = ms->ms_frm;
+	int _tmp_flen = ms->ms_flen;
+	size_t _len_frm = _tmp_flen;
+	unsigned char* _in_frm = NULL;
+	unsigned char* _tmp_to = ms->ms_to;
+	int _tmp_tlen = ms->ms_tlen;
+	size_t _len_to = _tmp_tlen;
+	unsigned char* _in_to = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_frm, _len_frm);
+	CHECK_UNIQUE_POINTER(_tmp_to, _len_to);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_frm != NULL && _len_frm != 0) {
+		if ( _len_frm % sizeof(*_tmp_frm) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_frm = (unsigned char*)malloc(_len_frm);
+		if (_in_frm == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_frm, _len_frm, _tmp_frm, _len_frm)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_to != NULL && _len_to != 0) {
+		if ( _len_to % sizeof(*_tmp_to) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_to = (unsigned char*)malloc(_len_to)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_to, 0, _len_to);
+	}
+
+	ms->ms_retval = enclave_private_encrypt(_tmp_flen, (const unsigned char*)_in_frm, _tmp_tlen, _in_to, ms->ms_key_id, ms->ms_padding);
+	if (_in_to) {
+		if (memcpy_s(_tmp_to, _len_to, _in_to, _len_to)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_frm) free(_in_frm);
+	if (_in_to) free(_in_to);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_enclave_rsa_get_n(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_rsa_get_n_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_enclave_rsa_get_n_t* ms = SGX_CAST(ms_enclave_rsa_get_n_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
 	char* _tmp_output = ms->ms_output;
 	int _tmp_length = ms->ms_length;
@@ -137,7 +241,7 @@ static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_n(void* pms)
 		memset((void*)_in_output, 0, _len_output);
 	}
 
-	ms->ms_retval = sgx_rsa_get_n(ms->ms_key_id, _in_output, _tmp_length);
+	ms->ms_retval = enclave_rsa_get_n(ms->ms_key_id, _in_output, _tmp_length);
 	if (_in_output) {
 		if (memcpy_s(_tmp_output, _len_output, _in_output, _len_output)) {
 			status = SGX_ERROR_UNEXPECTED;
@@ -150,14 +254,14 @@ err:
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_e(void* pms)
+static sgx_status_t SGX_CDECL sgx_enclave_rsa_get_e(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_sgx_rsa_get_e_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_rsa_get_e_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_sgx_rsa_get_e_t* ms = SGX_CAST(ms_sgx_rsa_get_e_t*, pms);
+	ms_enclave_rsa_get_e_t* ms = SGX_CAST(ms_enclave_rsa_get_e_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
 	char* _tmp_output = ms->ms_output;
 	int _tmp_length = ms->ms_length;
@@ -185,7 +289,7 @@ static sgx_status_t SGX_CDECL sgx_sgx_rsa_get_e(void* pms)
 		memset((void*)_in_output, 0, _len_output);
 	}
 
-	ms->ms_retval = sgx_rsa_get_e(ms->ms_key_id, _in_output, _tmp_length);
+	ms->ms_retval = enclave_rsa_get_e(ms->ms_key_id, _in_output, _tmp_length);
 	if (_in_output) {
 		if (memcpy_s(_tmp_output, _len_output, _in_output, _len_output)) {
 			status = SGX_ERROR_UNEXPECTED;
@@ -198,14 +302,14 @@ err:
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_sgx_rsa_load_key(void* pms)
+static sgx_status_t SGX_CDECL sgx_enclave_rsa_load_key(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_sgx_rsa_load_key_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_rsa_load_key_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_sgx_rsa_load_key_t* ms = SGX_CAST(ms_sgx_rsa_load_key_t*, pms);
+	ms_enclave_rsa_load_key_t* ms = SGX_CAST(ms_enclave_rsa_load_key_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
 	const unsigned char* _tmp_keybuffer = ms->ms_keybuffer;
 	int _tmp_length = ms->ms_length;
@@ -261,7 +365,7 @@ static sgx_status_t SGX_CDECL sgx_sgx_rsa_load_key(void* pms)
 		}
 	}
 
-	ms->ms_retval = sgx_rsa_load_key((const unsigned char*)_in_keybuffer, _tmp_length, (const char*)_in_path);
+	ms->ms_retval = enclave_rsa_load_key((const unsigned char*)_in_keybuffer, _tmp_length, (const char*)_in_path);
 
 err:
 	if (_in_keybuffer) free(_in_keybuffer);
@@ -271,31 +375,33 @@ err:
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[5];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[7];
 } g_ecall_table = {
-	5,
+	7,
 	{
 		{(void*)(uintptr_t)sgx_teste_ecall, 0, 0},
-		{(void*)(uintptr_t)sgx_sgx_init_rsa_lock, 0, 0},
-		{(void*)(uintptr_t)sgx_sgx_rsa_get_n, 0, 0},
-		{(void*)(uintptr_t)sgx_sgx_rsa_get_e, 0, 0},
-		{(void*)(uintptr_t)sgx_sgx_rsa_load_key, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_init_rsa_lock, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_unload_key_from_enclave, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_private_encrypt, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_rsa_get_n, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_rsa_get_e, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_rsa_load_key, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[7][5];
+	uint8_t entry_table[7][7];
 } g_dyn_entry_table = {
 	7,
 	{
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 

@@ -8,74 +8,21 @@
 
 int keystore_rsa_priv_enc(int flen, const unsigned char* from, unsigned char* to, RSA* rsa,
         int padding) {
-    fprintf(stderr, "keystore_rsa_priv_enc(%d, %p, %p, %p, %d)", flen, from, to, rsa, padding);
+    fprintf(stderr, "%s(%d, %p, %p, %p, %d)\n", __FUNCTION__, flen, from, to, rsa, padding);
 
-    int num = RSA_size(rsa);
-    uint8_t* padded = OPENSSL_malloc(sizeof(uint8_t) * num);
-    if (padded == NULL) {
-        fprintf(stderr, "could not allocate padded signature");
+	
+    SGX_KEY* sgx_key = RSA_get_ex_data(rsa, rsa_key_handle);
+    if (sgx_key == NULL) {
+        fprintf(stderr, "[-] key had no sgx_key!");
         return 0;
     }
 
-    switch (padding) {
-    case RSA_PKCS1_PADDING:
-        if (!RSA_padding_add_PKCS1_type_1(padded, num, from, flen)) {
-            return 0;
-        }
-        break;
-    case RSA_X931_PADDING:
-        if (!RSA_padding_add_X931(padded, num, from, flen)) {
-            return 0;
-        }
-        break;
-    case RSA_NO_PADDING:
-        if (!RSA_padding_add_none(padded, num, from, flen)) {
-            return 0;
-        }
-        break;
-    default:
-        fprintf(stderr, "Unknown padding type: %d", padding);
-        return 0;
-    }
+    int retVal = sgx_private_encrypt(flen, from, to, sgx_key, padding);
+        fprintf(stderr, "sgx_key=%p keystore_rsa_priv_enc => returning %d %p len %llu ", sgx_key, retVal, to,
+            (unsigned long long) RSA_size(rsa));
 
-    uint8_t* key_id = (uint8_t*)RSA_get_ex_data(rsa, rsa_key_handle); //TODO -> SGX_KEYDATA
-    if (key_id == NULL) {
-        fprintf(stderr, "key had no key_id!");
-        return 0;
-    }
 
-    /*sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> binder = sm->getService(String16("android.security.keystore"));
-    sp<IKeystoreService> service = interface_cast<IKeystoreService>(binder);
-
-    if (service == NULL) {
-        fprintf(stderr, "could not contact keystore");
-        return 0;
-    }*/
-
-    uint8_t* reply = NULL;
-    size_t replyLen;
-    int32_t ret = -1;/*= service->sign(String16(reinterpret_cast<const char*>(key_id)), padded.get(),
-            num, &reply, &replyLen);*/ //TODO
-    if (ret < 0) {
-        fprintf(stderr, "There was an error during signing: could not connect");
-        free(reply);
-        return 0;
-    } else if (ret != 0) {
-        fprintf(stderr, "Error during signing from keystore: %d", ret);
-        free(reply);
-        return 0;
-    } else if (replyLen <= 0) {
-        fprintf(stderr, "No valid signature returned");
-        return 0;
-    }
-
-    memcpy(to, reply, replyLen);
-    free(reply);
-    OPENSSL_free(padded);
-    fprintf(stderr, "rsa=%p keystore_rsa_priv_enc => returning %p len %llu", rsa, to,
-            (unsigned long long) replyLen);
-    return replyLen;
+    return retVal;
 }
 
 int keystore_rsa_priv_dec(int flen, const unsigned char* from, unsigned char* to, RSA* rsa,

@@ -16,10 +16,12 @@ extern "C" {
 #endif
 
 void teste_ecall(void);
-void sgx_init_rsa_lock(void);
-int sgx_rsa_get_n(int key_id, char* output, int length);
-int sgx_rsa_get_e(int key_id, char* output, int length);
-int sgx_rsa_load_key(const unsigned char* keybuffer, int length, const char* path);
+void enclave_init_rsa_lock(void);
+void enclave_unload_key_from_enclave(int key_id);
+int enclave_private_encrypt(int flen, const unsigned char* frm, int tlen, unsigned char* to, int key_id, int padding);
+int enclave_rsa_get_n(int key_id, char* output, int length);
+int enclave_rsa_get_e(int key_id, char* output, int length);
+int enclave_rsa_load_key(const unsigned char* keybuffer, int length, const char* path);
 
 sgx_status_t SGX_CDECL ocall_print_string(const char* str);
 sgx_status_t SGX_CDECL u_sgxssl_ftime(void* timeptr, uint32_t timeb_len);

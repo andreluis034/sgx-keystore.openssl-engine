@@ -7,7 +7,7 @@
 #define MAX_KEYS 10
 
 CRYPTO_RWLOCK *rwlock = NULL;
-
+//TODO add reference count?
 typedef struct stored_key
 {
     char path[BUFSIZ];
@@ -17,13 +17,16 @@ typedef struct stored_key
 
 stored_key* keys[MAX_KEYS];
 
-void sgx_init_rsa_lock()
+void enclave_init_rsa_lock()
 {
    rwlock = CRYPTO_THREAD_lock_new();    
 }
 
-int sgx_rsa_get_e(int key_id, char* output, int length)
+int enclave_rsa_get_e(int key_id, char* output, int length)
 {
+    //Out of bounds
+    if (key_id >= MAX_KEYS || key_id < 0)
+        return 0;
     if(rwlock == NULL)
         return 0;
     CRYPTO_THREAD_write_lock(rwlock);
@@ -80,8 +83,11 @@ int sgx_rsa_get_e(int key_id, char* output, int length)
       
 }
 
-int sgx_rsa_get_n(int key_id, char* output, int length)
+int enclave_rsa_get_n(int key_id, char* output, int length)
 {
+    //Out of bounds
+    if (key_id >= MAX_KEYS || key_id < 0)
+        return 0;
     if(rwlock == NULL)
         return 0;
     CRYPTO_THREAD_write_lock(rwlock);
@@ -120,10 +126,86 @@ int sgx_rsa_get_n(int key_id, char* output, int length)
     return 0;
 }
 
-//Loads a key and returns its id. If the key was already loaded the previously assigned id is returned
-int sgx_rsa_load_key(const unsigned char * keybuffer, int length, const char* path)
+int enclave_rsa_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, const RSA* rsa, int padding)
 {
-    printf("[>] sgx_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
+    if (RSA_size(rsa) != tlen)
+    {
+        return -1;
+    }
+    
+    const RSA_METHOD* rsa_method = NULL;
+    int (*priv_enc) (int flen, const unsigned char *from,
+		unsigned char *to, RSA *rsa, int padding) = NULL;
+    rsa_method = RSA_get_method(rsa);
+    if (rsa_method == NULL)
+    {
+        return -1;
+    }
+    
+	priv_enc = RSA_meth_get_priv_enc(rsa_method);
+    if (priv_enc == NULL)
+    {
+        return -1;
+    }
+    
+    return priv_enc(flen, from, to, (RSA*) rsa, padding);
+}
+
+//TODO handle other key types, currently only supports RSA
+int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int key_id, int padding)
+{
+    const RSA* rsa;
+    if (from == NULL || to == NULL)
+        return -1;    
+    if (key_id >= MAX_KEYS || key_id < 0)
+        return -1;
+    if(rwlock == NULL)
+        return -1;
+    CRYPTO_THREAD_write_lock(rwlock);
+    stored_key* key = keys[key_id];
+    if (key == NULL)
+    {
+	    CRYPTO_THREAD_unlock(rwlock);
+        return -1;
+    }
+    
+    //TODO handle other key types, currently only supports RSA
+    rsa = EVP_PKEY_get0_RSA(key->pkey);
+    if(rsa == NULL)
+    {
+	    CRYPTO_THREAD_unlock(rwlock);
+        return -1;
+    }
+    int ret = enclave_rsa_private_encrypt(flen, from, tlen, to, rsa, padding);
+	CRYPTO_THREAD_unlock(rwlock);
+    return ret;
+}
+
+
+void enclave_unload_key_from_enclave(int key_id)
+{
+    //Out of bounds
+    if (key_id >= MAX_KEYS || key_id < 0)
+        return;
+    if(rwlock == NULL)
+        return;
+    CRYPTO_THREAD_write_lock(rwlock);
+    stored_key* key = keys[key_id];
+    if (key == NULL)
+    {
+	    CRYPTO_THREAD_unlock(rwlock);
+        return;
+    }
+    keys[key_id] = NULL;
+    EVP_PKEY_free(key->pkey);
+    free(key);
+    CRYPTO_THREAD_unlock(rwlock);
+}
+
+//Loads a key and returns its id. If the key was already loaded the previously assigned id is returned
+int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path)
+{
+    printf("[>] enclave_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
     if(keybuffer == NULL || path == NULL)
         return -3;
     if (rwlock == NULL)
