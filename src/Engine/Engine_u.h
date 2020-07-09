@@ -49,6 +49,7 @@ sgx_status_t teste_ecall(sgx_enclave_id_t eid);
 sgx_status_t enclave_init_rsa_lock(sgx_enclave_id_t eid);
 sgx_status_t enclave_unload_key_from_enclave(sgx_enclave_id_t eid, int key_id);
 sgx_status_t enclave_private_encrypt(sgx_enclave_id_t eid, int* retval, int flen, const unsigned char* frm, int tlen, unsigned char* to, int key_id, int padding);
+sgx_status_t enclave_private_decrypt(sgx_enclave_id_t eid, int* retval, int flen, const unsigned char* frm, int tlen, unsigned char* to, int key_id, int padding);
 sgx_status_t enclave_rsa_get_n(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
 sgx_status_t enclave_rsa_get_e(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
 sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path);

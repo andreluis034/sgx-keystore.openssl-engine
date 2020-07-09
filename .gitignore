@@ -60,3 +60,6 @@ Engine_old
 src/foo
 src/testkey.pem
 src/testkey.pem.pub
+src/key.bin
+src/key.bin.enc
+src/key.bin2

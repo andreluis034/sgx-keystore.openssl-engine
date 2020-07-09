@@ -26,6 +26,7 @@ sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave);
 sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave);
 
 int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding);
+int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding);
 
 
 void sgx_unload_key(SGX_KEY* key);

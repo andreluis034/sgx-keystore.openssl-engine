@@ -239,6 +239,28 @@ int sgx_get_key_size(SGX_KEY* key)
 
     return RSA_size(rsa);    
 }
+
+int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+{
+    sgx_status_t status;
+    int ret;
+    if (key == NULL)
+        return -1;
+    
+    int tlen = flen;
+    if(tlen == 0)
+        return -1;
+
+
+    status = enclave_private_decrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
+    if(status != SGX_SUCCESS)
+    {
+        fprintf(stderr, "enclave_private_decrypt ecall status: 0x%x\n", status);
+        return -1;
+    }
+    return ret;
+}
+
 int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
 {
     sgx_status_t status;
@@ -256,8 +278,6 @@ int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, 
         return -1;
     }
     return ret;
-
-    
 }
 
 

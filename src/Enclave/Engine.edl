@@ -14,6 +14,7 @@ enclave {
         public void enclave_unload_key_from_enclave(int key_id);
 
         public int enclave_private_encrypt(int flen, [in, size=flen]const unsigned char *frm, int tlen, [out, size=tlen]unsigned char *to, int key_id, int padding);
+        public int enclave_private_decrypt(int flen, [in, size=flen]const unsigned char *frm, int tlen, [out, size=tlen]unsigned char *to, int key_id, int padding);
 
 
 

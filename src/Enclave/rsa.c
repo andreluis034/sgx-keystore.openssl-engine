@@ -126,6 +126,28 @@ int enclave_rsa_get_n(int key_id, char* output, int length)
     return 0;
 }
 
+int enclave_rsa_private_decrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, const RSA* rsa, int padding)
+{
+    if (flen != tlen)
+        return -1;
+    const RSA_METHOD* rsa_method = NULL;
+    int (*priv_dec) (int flen, const unsigned char *from,
+		unsigned char *to, RSA *rsa, int padding) = NULL;
+    rsa_method = RSA_get_method(rsa);
+    if (rsa_method == NULL)
+    {
+        return -1;
+    }
+    
+	priv_dec = RSA_meth_get_priv_dec(rsa_method);
+    if (priv_dec == NULL)
+    {
+        return -1;
+    }
+    
+    return priv_dec(flen, from, to, (RSA*) rsa, padding);
+}
+
 int enclave_rsa_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, const RSA* rsa, int padding)
 {
     if (RSA_size(rsa) != tlen)
@@ -177,6 +199,34 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
         return -1;
     }
     int ret = enclave_rsa_private_encrypt(flen, from, tlen, to, rsa, padding);
+	CRYPTO_THREAD_unlock(rwlock);
+    return ret;
+}
+
+int enclave_private_decrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int key_id, int padding)
+{
+    const RSA* rsa;
+    if (from == NULL || to == NULL)
+        return -1;    
+    if (key_id >= MAX_KEYS || key_id < 0)
+        return -1;
+    if(rwlock == NULL)
+        return -1;
+    CRYPTO_THREAD_write_lock(rwlock);    
+    stored_key* key = keys[key_id];
+    if (key == NULL)
+    {
+	    CRYPTO_THREAD_unlock(rwlock);
+        return -1;
+    }
+    //TODO handle other key types, currently only supports RSA
+    rsa = EVP_PKEY_get0_RSA(key->pkey);
+    if(rsa == NULL)
+    {
+	    CRYPTO_THREAD_unlock(rwlock);
+        return -1;
+    }
+    int ret = enclave_rsa_private_decrypt(flen, from, tlen, to, rsa, padding);
 	CRYPTO_THREAD_unlock(rwlock);
     return ret;
 }
