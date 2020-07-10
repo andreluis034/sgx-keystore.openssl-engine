@@ -3,6 +3,8 @@
 #include <sys/file.h>
 #include "engine_id.h"
 #include "methods.h"
+#include <unistd.h>
+#include <sys/types.h>
 #include "libsgx.h"
 /*
  * ex_data index for keystore's key alias.
@@ -34,7 +36,7 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     (void)ui_method;
     (void)callback_data;
 #else
-    fprintf(stderr, "keystore_loadkey(%p, \"%s\", %p, %p)\n", e, key_id, ui_method, callback_data);
+    fprintf(stderr, "[%d] keystore_loadkey(%p, \"%s\", %p, %p)\n", getpid(), e, key_id, ui_method, callback_data);
 #endif
     //The strncmp function compares not more than n characters (characters that follow a null character 
     // are not compared) from the array pointed to by s1 to the array pointed to by s2."
@@ -45,7 +47,6 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     }
     const char* key_path = key_id + strlen("sgxkeystore:");
 
-    fprintf(stderr, "loading key: %s\n", key_path);
     SGX_ENCLAVE* enclave = get_enclave_from_engine(e);
 
     if (enclave == NULL)
@@ -81,7 +82,7 @@ static const ENGINE_CMD_DEFN keystore_cmd_defns[] = {
 static int sgxkeystore_idx = -1;
 static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
 {
-    fprintf(stderr, "get_enclave_from_engine\n");
+    fprintf(stderr, "[%d] get_enclave_from_engine\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
 	if (sgxkeystore_idx < 0) {
 		sgxkeystore_idx = ENGINE_get_ex_new_index(0, ENGINE_ID, NULL, NULL, 0);
@@ -93,13 +94,13 @@ static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
 	}
 	if (!enclave) {
         sgx_status_t status = sgx_init_enclave(ENCLAVE_PATH, &enclave);
-        fprintf(stderr, "sgx_init_enclave returned %d\n", status);
+        fprintf(stderr, "[%d] sgx_init_enclave returned %d\n", getpid(), status);
         if (status == SGX_SUCCESS)
         {
 		    ENGINE_set_ex_data(engine, sgxkeystore_idx, enclave);
             return enclave;
         }
-        fprintf(stderr, "sgx_init_enclave failed\n");
+        fprintf(stderr, "[%d] sgx_init_enclave failed\n", getpid());
         fprintf(stderr, "%s\n", sgx_get_error_message(status));
         return NULL;
 	}
@@ -108,7 +109,7 @@ static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
 
 static int engine_init(ENGINE *engine)
 {
-    fprintf(stderr, "engine_init\n");
+    fprintf(stderr, "[%d] engine_init\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
     enclave = get_enclave_from_engine(engine);
     if (!enclave)
@@ -120,7 +121,7 @@ static int engine_init(ENGINE *engine)
 //This function on engine disable
 static int engine_finish(ENGINE *engine)
 {
-    fprintf(stderr, "engine_finish\n");
+    fprintf(stderr, "[%d] engine_finish\n", getpid());
     //Unload all keys from the enclave
     SGX_ENCLAVE* enclave = NULL;
     enclave = get_enclave_from_engine(engine);
@@ -133,7 +134,7 @@ static int engine_finish(ENGINE *engine)
 //called on engine destruction
 static int engine_destroy(ENGINE *engine)
 {
-    fprintf(stderr, "engine_destroy\n");
+    fprintf(stderr, "[%d] engine_destroy\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
     enclave = get_enclave_from_engine(engine);
     if (!enclave)
@@ -177,10 +178,10 @@ static int keystore_engine_setup(ENGINE* e) {
     }
 
 
-    if (!rsa_register(e)) {
+    /*if (!rsa_register(e)) {
         fprintf(stderr, "RSA registration failed");
         return 0;
-    }
+    }*/
 
     return 1;
 }

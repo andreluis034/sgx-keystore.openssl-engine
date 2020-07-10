@@ -12,10 +12,11 @@ typedef struct SGX_Enclave_st SGX_ENCLAVE;
 /** SGX key object (public or private) */
 typedef struct SGX_key_st {
     unsigned int keyId;
+    pid_t pid;
 	const char label[BUFSIZ];
 	unsigned char isPrivate;	/**< private key present? */
 	EVP_PKEY *evp_key;		/**< initially NULL, need to call PKCS11_load_key */
-	const SGX_ENCLAVE* enclave;
+	SGX_ENCLAVE* enclave;
 } SGX_KEY;
 
 

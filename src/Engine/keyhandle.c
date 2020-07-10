@@ -39,7 +39,7 @@ void keyhandle_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
  */
 int keyhandle_dup(CRYPTO_EX_DATA *to, const CRYPTO_EX_DATA *from,
                            void *from_d, int idx, long argl, void *argp) {
-    printf("[>] %s\n", __FUNCTION__);
+    printf("[>] %s-----------------------\n", __FUNCTION__);
     // This appears to be a bug in OpenSSL.
     void** ptr = (void**)(from_d);
     char* keyhandle = (char*)(*ptr);

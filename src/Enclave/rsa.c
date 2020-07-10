@@ -255,7 +255,7 @@ void enclave_unload_key_from_enclave(int key_id)
 //Loads a key and returns its id. If the key was already loaded the previously assigned id is returned
 int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path)
 {
-    printf("[>] enclave_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
+    //printf("[>] enclave_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
     if(keybuffer == NULL || path == NULL)
         return -3;
     if (rwlock == NULL)
