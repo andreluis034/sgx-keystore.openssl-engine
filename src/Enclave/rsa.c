@@ -172,6 +172,13 @@ int enclave_rsa_private_encrypt(int flen, const unsigned char *from, int tlen, u
     
     return priv_enc(flen, from, to, (RSA*) rsa, padding);
 }
+void print_hex(const unsigned char* buffer, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        printf("%02X", buffer[i]);
+    }
+}
 
 //TODO handle other key types, currently only supports RSA
 int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int key_id, int padding)
@@ -183,6 +190,11 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
         return -1;
     if(rwlock == NULL)
         return -1;
+    
+    printf("%d, ", flen);
+    print_hex(from, flen);
+    printf(", %d, %d, %d\n", tlen, key_id, padding);
+    
     CRYPTO_THREAD_write_lock(rwlock);
     stored_key* key = keys[key_id];
     if (key == NULL)
@@ -198,6 +210,7 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
 	    CRYPTO_THREAD_unlock(rwlock);
         return -1;
     }
+    
     int ret = enclave_rsa_private_encrypt(flen, from, tlen, to, rsa, padding);
 	CRYPTO_THREAD_unlock(rwlock);
     return ret;
@@ -296,6 +309,7 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     {
         if (keys[i] != NULL && BN_cmp(RSA_get0_n(rsa), RSA_get0_n(EVP_PKEY_get0_RSA(keys[i]->pkey))) == 0)
         {
+            EVP_PKEY_free(pk);
 	        CRYPTO_THREAD_unlock(rwlock);
             return i;
         }
@@ -305,7 +319,6 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     //No more space available
     if (availableSlot == -1)
     {
-        RSA_free(rsa);
         EVP_PKEY_free(pk);
 	    CRYPTO_THREAD_unlock(rwlock);
         return -1;

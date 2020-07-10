@@ -131,8 +131,9 @@ int sgx_get_key_size(SGX_KEY* key)
     return RSA_size(rsa);    
 }
 
-int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
+
     return -1;
     /*
     sgx_status_t status;
@@ -159,10 +160,55 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
     }
     return ret;*/
 }
-
-int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+void print_hex(const unsigned char* buffer, int n)
 {
-    return -1;
+    for (int i = 0; i < n; i++)
+    {
+        printf("%02X", buffer[i]);
+    }
+}
+
+int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
+{
+    struct Request* request;
+    struct Response* response;
+    int fd;
+
+    printf("%d, ", flen);
+    print_hex(from, flen);
+    printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
+        return 0;
+    request = OPENSSL_zalloc(sizeof(struct Request));
+    response = OPENSSL_zalloc(sizeof(struct Response));
+    request->type = rsa_priv_enc;
+    request->message.rsa_priv.flen = flen;
+    memcpy(request->message.rsa_priv.from, from, sizeof(request->message.rsa_priv.from));
+    request->message.rsa_priv.keySlot = sgx_key->keyId;
+    request->message.rsa_priv.padding = padding;
+    request->message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
+
+    int lwrite = write(fd, request, sizeof(struct Request));
+    if (lwrite != sizeof(struct Request))
+    {
+        OPENSSL_free(request);
+        OPENSSL_free(response);
+        return -1;
+    }
+    int lread = read(fd, response, sizeof(struct Response));
+    if (lread != sizeof(struct Response))
+    {
+        OPENSSL_free(request);
+        OPENSSL_free(response);
+        return -1;
+    }
+
+    close(fd);
+    memcpy(to, response->message.rsa_priv.to, response->message.rsa_priv.retValue); 
+    int retValue = response->message.rsa_priv.retValue;
+    OPENSSL_free(request);
+    OPENSSL_free(response);
+    return retValue;
     /*
     sgx_status_t status;
     int ret;

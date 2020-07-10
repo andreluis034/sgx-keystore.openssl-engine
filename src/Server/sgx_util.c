@@ -124,6 +124,45 @@ const char* sgx_get_error_message(sgx_status_t status)
     return NULL;
 }
 
+void print_hex(const unsigned char* buffer, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        printf("%02X", buffer[i]);
+    }
+}
+
+int sgx_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int key_id, int padding)
+{
+    sgx_status_t status;
+    int ret;
+    // CRYPTO_THREAD_write_lock(key->enclave->rwlock);
+
+    //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
+    printf("%d, ", flen);
+    print_hex(from, flen);
+    printf(", %d, %d, %d\n", tlen, key_id, padding);
+    if(tlen == 0)
+    {
+        // CRYPTO_THREAD_unlock(key->enclave->rwlock);
+        return -1;
+    }        
+
+   // fprintf(stderr, "[%d] key size: %d\n", getpid(), tlen);
+    status = enclave_private_encrypt(enclave_id, &ret, flen, from, tlen, to, key_id, padding);
+    if(status != SGX_SUCCESS)
+    {
+        fprintf(stderr, "enclave_private_encrypt ecall status: 0x%x\n", status);
+        // CRYPTO_THREAD_unlock(key->enclave->rwlock);
+        return -1;
+    }
+    fprintf(stderr, "enclave_private_encrypt ret: %d\n", ret);
+    // CRYPTO_THREAD_unlock(key->enclave->rwlock);
+    return ret;
+}
+
+
+
 int sgx_load_key(const char* key_path)
 {
     FILE* fd  = fopen(key_path, "rb");
@@ -145,17 +184,19 @@ int sgx_load_key(const char* key_path)
         free(buffer);
         return -1;
     }
-
+    fclose(fd);
     int key_slot = -1;
     
     sgx_status_t status = enclave_rsa_load_key(enclave_id, &key_slot, buffer, read, key_path);
     if (status != SGX_SUCCESS)
     {
+        printf("Enclave returned 0x%x\n", status);
         free(buffer);
         return -1;
     }
     if (key_slot < 0)
     {
+        printf("returned key_slot %d\n", key_slot);
         free(buffer);
         return -1;
     }

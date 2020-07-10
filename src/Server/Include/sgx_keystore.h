@@ -24,7 +24,30 @@ struct Request
         {
             int keySlot;
         } rsa_get_e_n;
+
+        struct
+        {
+            int flen; 
+            unsigned char from[SGX_KEYSTORE_MAX_BUFFER_LENGTH];
+            int tlen;
+            int keySlot;
+            int padding;
+        } rsa_priv;
+        
         
     } message;
     
+};
+
+struct Response
+{
+    union 
+    {
+        struct 
+        {
+            int retValue;
+            int tlen;
+            unsigned char to[SGX_KEYSTORE_MAX_BUFFER_LENGTH];
+        }rsa_priv;
+    } message;
 };

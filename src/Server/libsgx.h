@@ -10,8 +10,8 @@ sgx_status_t sgx_init_enclave(const char* enclave_path);
 
 sgx_status_t sgx_destroy_enclave_wrapper();
 
-int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, int keyId, int padding);
-int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, int keyId, int padding);
+int sgx_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int keyId, int padding);
+int sgx_private_decrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int keyId, int padding);
 
 
 char* sgx_rsa_get_n(int key_id);

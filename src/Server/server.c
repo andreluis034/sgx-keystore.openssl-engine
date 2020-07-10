@@ -16,12 +16,14 @@ void handle_loadkey(int fd, struct Request* request)
 void handle_get_e_n(int fd, struct Request* request)
 {
     char* rsa_n = sgx_rsa_get_n(request->message.rsa_get_e_n.keySlot);
+    if (rsa_n == NULL)
+        return;
+    
     int rsa_n_length = strlen(rsa_n);
     char* data =  malloc(sizeof(rsa_n_length) + rsa_n_length + 1);
     memset(data, 0, sizeof(rsa_n_length) + rsa_n_length + 1);
     memcpy(data, &rsa_n_length, sizeof(rsa_n_length)); memcpy(data + sizeof(rsa_n_length), rsa_n, rsa_n_length);
     int lwrite = write(fd, data, sizeof(rsa_n_length) + rsa_n_length + 1);
-    printf("%d %s\n", rsa_n_length, rsa_n);
     free(data);
     free(rsa_n);
 
@@ -31,10 +33,28 @@ void handle_get_e_n(int fd, struct Request* request)
     memset(data, 0, sizeof(rsa_e_length) + rsa_e_length + 1);
     memcpy(data, &rsa_e_length, sizeof(rsa_e_length)); memcpy(data + sizeof(rsa_e_length), rsa_e, rsa_e_length);
     lwrite = write(fd, data, sizeof(rsa_e_length) + rsa_e_length + 1);
-    printf("%d %s\n", rsa_e_length, rsa_e);
     free(data);
     free(rsa_e);
     (void)lwrite;
+}
+
+void handle_rsa_priv_enc(int fd, struct Request* request)
+{   
+    int lwrite;
+    struct Response response;
+    printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
+
+    int result = sgx_private_encrypt(request->message.rsa_priv.flen, request->message.rsa_priv.from, request->message.rsa_priv.tlen, response.message.rsa_priv.to, request->message.rsa_priv.keySlot, request->message.rsa_priv.padding);
+    // if (result < 0 )
+    // {
+    //     response.message.rsa_priv.retValue = result; 
+    //     lwrite = write(fd, &response, sizeof(response));
+    //     return;
+    // }
+    response.message.rsa_priv.retValue = result; 
+    lwrite = write(fd, &response, sizeof(response));
+    (void)lwrite;
+    printf("%d\n", result);
 }
 
 void handle_message(int fd, struct Request* request)
@@ -48,6 +68,9 @@ void handle_message(int fd, struct Request* request)
         break;
     case rsa_get_e_n:
         handle_get_e_n(fd, request);
+        break;
+    case rsa_priv_enc:
+        handle_rsa_priv_enc(fd, request);
         break;
     default:
         break;
