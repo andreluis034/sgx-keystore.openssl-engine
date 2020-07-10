@@ -234,7 +234,6 @@ int sgx_handle_forked(SGX_KEY* sgx_key)
     if (sgx_key->enclave->pid != getpid())
     {
         fprintf(stderr, "[%d] enclave not loaded in current process\n", getpid());
-        sleep(5);
         status = sgx_init_enclave(ENCLAVE_PATH, &new_enclave);
         if (status != SGX_SUCCESS)
         {
@@ -279,7 +278,7 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
     sgx_status_t status;
     int ret;
   
-    fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
+    //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
     if (!sgx_handle_forked(key))
         return -1;
     
@@ -303,27 +302,40 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
 
 int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
 {
+    
     sgx_status_t status;
     int ret;
+    CRYPTO_THREAD_write_lock(key->enclave->rwlock);
 
-    fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
+    //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
     if (!sgx_handle_forked(key))
+    {
+        CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
+    }
 
     if (key == NULL)
+    {
+        CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
+    }
     
     int tlen = sgx_get_key_size(key);   
     if(tlen == 0)
+    {
+        CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
+    }        
 
-    fprintf(stderr, "[%d] key size: %d\n", getpid(), tlen);
+   // fprintf(stderr, "[%d] key size: %d\n", getpid(), tlen);
     status = enclave_private_encrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
     if(status != SGX_SUCCESS)
     {
         fprintf(stderr, "enclave_private_encrypt ecall status: 0x%x\n", status);
+        CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
     }
+    CRYPTO_THREAD_unlock(key->enclave->rwlock);
     return ret;
 }
 
