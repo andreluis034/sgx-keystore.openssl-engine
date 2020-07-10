@@ -294,7 +294,7 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     size_t availableSlot = -1;
     for (size_t i = 0; i < MAX_KEYS; i++)
     {
-        if (keys[i] != NULL && EVP_PKEY_cmp(pk, keys[i]->pkey) == 0)
+        if (keys[i] != NULL && BN_cmp(RSA_get0_n(rsa), RSA_get0_n(EVP_PKEY_get0_RSA(keys[i]->pkey))) == 0)
         {
 	        CRYPTO_THREAD_unlock(rwlock);
             return i;

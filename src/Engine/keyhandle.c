@@ -30,7 +30,7 @@ void keyhandle_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
 
     SGX_KEY* keyhandle = (SGX_KEY*)ptr;
     if (keyhandle != NULL) {
-        sgx_unload_key(keyhandle);
+        //sgx_unload_key(keyhandle);
     }
 }
 

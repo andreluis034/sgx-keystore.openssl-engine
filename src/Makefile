@@ -30,7 +30,7 @@
 #
 include buildenv.mk
 
-all: engine enclave
+all: engine enclave keystore
 
 engine:
 	$(MAKE) -f sgx_u.mk all
@@ -38,6 +38,8 @@ engine:
 enclave:
 	$(MAKE) -f sgx_t.mk all
 
+keystore:
+	$(MAKE) -f keystore_server.mk all
 
 test:
 	$(MAKE) -f sgx_u.mk test
@@ -45,3 +47,4 @@ test:
 clean:
 	$(MAKE) -f sgx_u.mk clean
 	$(MAKE) -f sgx_t.mk clean
+	$(MAKE) -f keystore_server.mk clean

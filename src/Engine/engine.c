@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include "libsgx.h"
+#include "sgx_keystore.h"
 /*
  * ex_data index for keystore's key alias.
  */
@@ -68,7 +69,7 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     EVP_PKEY* pk = sgx_key->evp_key = sgx_get_evp_key_rsa(sgx_key);
     if(pk == NULL)
     {
-        fprintf(stderr, "[-] Failed to load SGX_KEY \n");
+        fprintf(stderr, "[-] Failed to get EVP_PKEY \n");
         return NULL;
     }
 
@@ -93,15 +94,14 @@ static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
 		enclave = ENGINE_get_ex_data(engine, sgxkeystore_idx);
 	}
 	if (!enclave) {
-        sgx_status_t status = sgx_init_enclave(ENCLAVE_PATH, &enclave);
+        int status = sgx_init_enclave(SGX_KEYSTORE_SOCKET_PATH, &enclave);
         fprintf(stderr, "[%d] sgx_init_enclave returned %d\n", getpid(), status);
-        if (status == SGX_SUCCESS)
+        if (status)
         {
 		    ENGINE_set_ex_data(engine, sgxkeystore_idx, enclave);
             return enclave;
         }
         fprintf(stderr, "[%d] sgx_init_enclave failed\n", getpid());
-        fprintf(stderr, "%s\n", sgx_get_error_message(status));
         return NULL;
 	}
 	return enclave;
@@ -139,7 +139,7 @@ static int engine_destroy(ENGINE *engine)
     enclave = get_enclave_from_engine(engine);
     if (!enclave)
         return 0;
-    sgx_status_t status = sgx_destroy_enclave_wrapper(enclave);
+   /* sgx_status_t status = sgx_destroy_enclave_wrapper(enclave);
 	ENGINE_set_ex_data(engine, sgxkeystore_idx, NULL);
     if (status != SGX_SUCCESS)
     {
@@ -147,7 +147,7 @@ static int engine_destroy(ENGINE *engine)
         fprintf(stderr, "%s\n", sgx_get_error_message(status));
         return 0;
     }
-    printf("Destroyed enclave\n");
+    printf("Destroyed enclave\n");*/
     
     return 1;
 }
