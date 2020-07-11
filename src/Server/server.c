@@ -45,17 +45,25 @@ void handle_rsa_priv_enc(int fd, struct Request* request)
     printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
 
     int result = sgx_private_encrypt(request->message.rsa_priv.flen, request->message.rsa_priv.from, request->message.rsa_priv.tlen, response.message.rsa_priv.to, request->message.rsa_priv.keySlot, request->message.rsa_priv.padding);
-    // if (result < 0 )
-    // {
-    //     response.message.rsa_priv.retValue = result; 
-    //     lwrite = write(fd, &response, sizeof(response));
-    //     return;
-    // }
     response.message.rsa_priv.retValue = result; 
     lwrite = write(fd, &response, sizeof(response));
     (void)lwrite;
     printf("%d\n", result);
 }
+
+void handle_rsa_priv_dec(int fd, struct Request* request)
+{   
+    int lwrite;
+    struct Response response;
+    printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
+
+    int result = sgx_private_decrypt(request->message.rsa_priv.flen, request->message.rsa_priv.from, request->message.rsa_priv.tlen, response.message.rsa_priv.to, request->message.rsa_priv.keySlot, request->message.rsa_priv.padding);
+    response.message.rsa_priv.retValue = result; 
+    lwrite = write(fd, &response, sizeof(response));
+    (void)lwrite;
+    printf("%d\n", result);
+}
+
 
 void handle_message(int fd, struct Request* request)
 {
@@ -71,6 +79,9 @@ void handle_message(int fd, struct Request* request)
         break;
     case rsa_priv_enc:
         handle_rsa_priv_enc(fd, request);
+        break;
+    case rsa_priv_dec:
+        handle_rsa_priv_dec(fd, request);
         break;
     default:
         break;

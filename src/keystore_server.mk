@@ -79,7 +79,7 @@ endif
 
 
 #App_C_Files := $(UNTRUSTED_DIR)/eng_front.c $(UNTRUSTED_DIR)/eng_back.c $(UNTRUSTED_DIR)/sgx_rsa.c $(UNTRUSTED_DIR)/sgx_front.c $(UNTRUSTED_DIR)/sgx_atfork.c $(UNTRUSTED_DIR)/eng_err.c
-App_C_Files := $(UNTRUSTED_DIR)/server.c $(UNTRUSTED_DIR)/Enclave_util.c $(UNTRUSTED_DIR)/sgx_util.c
+App_C_Files := $(UNTRUSTED_DIR)/server.c $(UNTRUSTED_DIR)/Enclave_util.c $(UNTRUSTED_DIR)/libsgx.c
 App_C_Objects := $(App_C_Files:.c=.o)
 
 App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC)
