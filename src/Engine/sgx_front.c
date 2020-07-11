@@ -130,7 +130,13 @@ int sgx_get_key_size(SGX_KEY* key)
 
     return RSA_size(rsa);    
 }
-
+void print_hex(const unsigned char* buffer, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        printf("%02X", buffer[i]);
+    }
+}
 int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
     struct Request request;
@@ -149,7 +155,7 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
     memcpy(request.message.rsa_priv.from, from, flen);
     request.message.rsa_priv.keySlot = sgx_key->keyId;
     request.message.rsa_priv.padding = padding;
-    request.message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
+    request.message.rsa_priv.tlen = flen;
 
     int lwrite = write(fd, &request, sizeof(struct Request));
     if (lwrite != sizeof(struct Request))
@@ -166,13 +172,7 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
     memcpy(to, response.message.rsa_priv.to, response.message.rsa_priv.retValue); 
     return response.message.rsa_priv.retValue;
 }
-void print_hex(const unsigned char* buffer, int n)
-{
-    for (int i = 0; i < n; i++)
-    {
-        printf("%02X", buffer[i]);
-    }
-}
+
 
 int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
