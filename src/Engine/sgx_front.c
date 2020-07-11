@@ -133,32 +133,38 @@ int sgx_get_key_size(SGX_KEY* key)
 
 int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
+    struct Request request;
+    struct Response response;
+    int fd;
 
-    return -1;
-    /*
-    sgx_status_t status;
-    int ret;
-  
-    //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    if (!sgx_handle_forked(key))
-        return -1;
-    
+    printf("%d, ", flen);
+    print_hex(from, flen);
+    printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
+        return 0;
+    //request = OPENSSL_zalloc(sizeof(struct Request));
+    //response = OPENSSL_zalloc(sizeof(struct Response));
+    request.type = rsa_priv_dec;
+    request.message.rsa_priv.flen = flen;
+    memcpy(request.message.rsa_priv.from, from, flen);
+    request.message.rsa_priv.keySlot = sgx_key->keyId;
+    request.message.rsa_priv.padding = padding;
+    request.message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
 
-    if (key == NULL)
-        return -1;
-    
-    int tlen = flen;
-    if(tlen == 0)
-        return -1;
-
-
-    status = enclave_private_decrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
-    if(status != SGX_SUCCESS)
+    int lwrite = write(fd, &request, sizeof(struct Request));
+    if (lwrite != sizeof(struct Request))
     {
-        fprintf(stderr, "enclave_private_decrypt ecall status: 0x%x\n", status);
         return -1;
     }
-    return ret;*/
+    int lread = read(fd, &response, sizeof(struct Response));
+    if (lread != sizeof(struct Response))
+    {
+        return -1;
+    }
+
+    close(fd);
+    memcpy(to, response.message.rsa_priv.to, response.message.rsa_priv.retValue); 
+    return response.message.rsa_priv.retValue;
 }
 void print_hex(const unsigned char* buffer, int n)
 {
@@ -170,8 +176,8 @@ void print_hex(const unsigned char* buffer, int n)
 
 int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
-    struct Request* request;
-    struct Response* response;
+    struct Request request;
+    struct Response response;
     int fd;
 
     printf("%d, ", flen);
@@ -179,71 +185,29 @@ int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, 
     printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
     if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
         return 0;
-    request = OPENSSL_zalloc(sizeof(struct Request));
-    response = OPENSSL_zalloc(sizeof(struct Response));
-    request->type = rsa_priv_enc;
-    request->message.rsa_priv.flen = flen;
-    memcpy(request->message.rsa_priv.from, from, sizeof(request->message.rsa_priv.from));
-    request->message.rsa_priv.keySlot = sgx_key->keyId;
-    request->message.rsa_priv.padding = padding;
-    request->message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
+    //request = OPENSSL_zalloc(sizeof(struct Request));
+    //response = OPENSSL_zalloc(sizeof(struct Response));
+    request.type = rsa_priv_enc;
+    request.message.rsa_priv.flen = flen;
+    memcpy(request.message.rsa_priv.from, from, flen);
+    request.message.rsa_priv.keySlot = sgx_key->keyId;
+    request.message.rsa_priv.padding = padding;
+    request.message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
 
-    int lwrite = write(fd, request, sizeof(struct Request));
+    int lwrite = write(fd, &request, sizeof(struct Request));
     if (lwrite != sizeof(struct Request))
     {
-        OPENSSL_free(request);
-        OPENSSL_free(response);
         return -1;
     }
-    int lread = read(fd, response, sizeof(struct Response));
+    int lread = read(fd, &response, sizeof(struct Response));
     if (lread != sizeof(struct Response))
     {
-        OPENSSL_free(request);
-        OPENSSL_free(response);
         return -1;
     }
 
     close(fd);
-    memcpy(to, response->message.rsa_priv.to, response->message.rsa_priv.retValue); 
-    int retValue = response->message.rsa_priv.retValue;
-    OPENSSL_free(request);
-    OPENSSL_free(response);
-    return retValue;
-    /*
-    sgx_status_t status;
-    int ret;
-    CRYPTO_THREAD_write_lock(key->enclave->rwlock);
-
-    //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    if (!sgx_handle_forked(key))
-    {
-        CRYPTO_THREAD_unlock(key->enclave->rwlock);
-        return -1;
-    }
-
-    if (key == NULL)
-    {
-        CRYPTO_THREAD_unlock(key->enclave->rwlock);
-        return -1;
-    }
-    
-    int tlen = sgx_get_key_size(key);   
-    if(tlen == 0)
-    {
-        CRYPTO_THREAD_unlock(key->enclave->rwlock);
-        return -1;
-    }        
-
-   // fprintf(stderr, "[%d] key size: %d\n", getpid(), tlen);
-    status = enclave_private_encrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
-    if(status != SGX_SUCCESS)
-    {
-        fprintf(stderr, "enclave_private_encrypt ecall status: 0x%x\n", status);
-        CRYPTO_THREAD_unlock(key->enclave->rwlock);
-        return -1;
-    }
-    CRYPTO_THREAD_unlock(key->enclave->rwlock);
-    return ret;*/
+    memcpy(to, response.message.rsa_priv.to, response.message.rsa_priv.retValue); 
+    return response.message.rsa_priv.retValue;
 }
 
 
