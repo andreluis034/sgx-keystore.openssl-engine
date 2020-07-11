@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
+#include <signal.h>
 #include "Include/sgx_keystore.h"
 #include "libsgx.h"
 
@@ -121,6 +122,7 @@ int main(int argc, const char* argv[])
     int fd,cl;
 
     load_enclave();
+    signal(SIGPIPE, SIG_IGN);
 
     if ( (fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         perror("socket error");
