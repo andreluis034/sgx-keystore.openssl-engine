@@ -42,11 +42,6 @@ void keyhandle_free(void *, void *ptr, CRYPTO_EX_DATA*, int, long, void*);
 int keyhandle_dup(CRYPTO_EX_DATA *to, const CRYPTO_EX_DATA *from,
                            void *from_d, int idx, long argl, void *argp);
 
-/* For EC_EX_DATA stuff */
-void *ex_data_dup(void *);
-void ex_data_free(void *);
-void ex_data_clear_free(void *);
-
 /* RSA */
 int rsa_register(ENGINE *);
 int rsa_pkey_setup(ENGINE *, EVP_PKEY*, const char*);

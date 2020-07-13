@@ -191,9 +191,9 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
     if(rwlock == NULL)
         return -1;
     
-    printf("%d, ", flen);
-    print_hex(from, flen);
-    printf(", %d, %d, %d\n", tlen, key_id, padding);
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", tlen, key_id, padding);
     
     CRYPTO_THREAD_write_lock(rwlock);
     stored_key* key = keys[key_id];

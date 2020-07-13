@@ -20,7 +20,7 @@ static pthread_once_t key_handle_control = PTHREAD_ONCE_INIT;
 
 
 
-static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine);
+static SGX_ENCLAVE* get_context_from_engine(ENGINE* engine);
 
 /**
  * Called to initialize RSA's ex_data for the key_id handle. This should
@@ -48,7 +48,7 @@ static EVP_PKEY* keystore_loadkey(ENGINE* e, const char* key_id, UI_METHOD* ui_m
     }
     const char* key_path = key_id + strlen("sgxkeystore:");
 
-    SGX_ENCLAVE* enclave = get_enclave_from_engine(e);
+    SGX_ENCLAVE* enclave = get_context_from_engine(e);
 
     if (enclave == NULL)
     {
@@ -81,9 +81,9 @@ static const ENGINE_CMD_DEFN keystore_cmd_defns[] = {
 };
 
 static int sgxkeystore_idx = -1;
-static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
+static SGX_ENCLAVE* get_context_from_engine(ENGINE* engine)
 {
-    fprintf(stderr, "[%d] get_enclave_from_engine\n", getpid());
+    fprintf(stdout, "[%d] get_context_from_engine\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
 	if (sgxkeystore_idx < 0) {
 		sgxkeystore_idx = ENGINE_get_ex_new_index(0, ENGINE_ID, NULL, NULL, 0);
@@ -109,9 +109,9 @@ static SGX_ENCLAVE* get_enclave_from_engine(ENGINE* engine)
 
 static int engine_init(ENGINE *engine)
 {
-    fprintf(stderr, "[%d] engine_init\n", getpid());
+    fprintf(stdout, "[%d] engine_init\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
-    enclave = get_enclave_from_engine(engine);
+    enclave = get_context_from_engine(engine);
     if (!enclave)
         return 0;
     
@@ -121,10 +121,10 @@ static int engine_init(ENGINE *engine)
 //This function on engine disable
 static int engine_finish(ENGINE *engine)
 {
-    fprintf(stderr, "[%d] engine_finish\n", getpid());
+    fprintf(stdout, "[%d] engine_finish\n", getpid());
     //Unload all keys from the enclave
     SGX_ENCLAVE* enclave = NULL;
-    enclave = get_enclave_from_engine(engine);
+    enclave = get_context_from_engine(engine);
     if (!enclave)
         return 0;
     //TODO: Unload all keys from memory
@@ -134,9 +134,8 @@ static int engine_finish(ENGINE *engine)
 //called on engine destruction
 static int engine_destroy(ENGINE *engine)
 {
-    fprintf(stderr, "[%d] engine_destroy\n", getpid());
     SGX_ENCLAVE* enclave = NULL;
-    enclave = get_enclave_from_engine(engine);
+    enclave = get_context_from_engine(engine);
     if (!enclave)
         return 0;
    /* sgx_status_t status = sgx_destroy_enclave_wrapper(enclave);
@@ -153,7 +152,7 @@ static int engine_destroy(ENGINE *engine)
 }
 
 static int keystore_engine_setup(ENGINE* e) {
-    fprintf(stderr, "keystore_engine_setup\n");
+    fprintf(stdout, "keystore_engine_setup\n");
 
 
 
@@ -188,7 +187,7 @@ static int keystore_engine_setup(ENGINE* e) {
 
 static int keystore_bind_fn(ENGINE *e, const char *id) {
 
-    fprintf(stderr, "keystore_bind_fn\n");
+    fprintf(stdout, "keystore_bind_fn\n");
     if (!id) {
         return 0;
     }

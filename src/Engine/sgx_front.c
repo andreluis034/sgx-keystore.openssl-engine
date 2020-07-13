@@ -29,7 +29,7 @@ int connect_to_keystore(const char* keystore_socket)
     strncpy(addr.sun_path, keystore_socket, sizeof(addr.sun_path)-1);
 
     if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
-        perror("connect error");
+        fprintf(stderr, "Could not connect to socket: %s\n", strerror(errno));
         return -1;
     }
     return fd;
@@ -77,14 +77,25 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
     }
     rsa_n_length = *(int*)data;
     rsa_n = strdup(data + sizeof(rsa_n_length));
-    if ((length = read(fd, data, 1024*2)) < 0)
+    if (length > rsa_n_length + sizeof(rsa_n_length) + 1) // 1 -> Null terminator
     {
-        free(data);
-        return NULL;
+        rsa_e_length = *(int*)(data + rsa_n_length + sizeof(rsa_n_length));
+        rsa_e = strdup(data + rsa_n_length + sizeof(rsa_n_length) + 1 + sizeof(rsa_e_length));
+        //TODO read remainig if not done?
     }
-    rsa_e_length = *(int*)data;
-    rsa_e = strdup(data + sizeof(rsa_e_length));
+    else
+    {
+        if ((length = read(fd, data, 1024*2)) < 0)
+        {
+            free(data);
+            free(rsa_n);
+            return NULL;
+        }
+        rsa_e_length = *(int*)(data);
+        rsa_e = strdup(data + sizeof(rsa_e_length));
+    }
     
+
     if ((bn_n = BN_new()) == NULL || BN_hex2bn(&bn_n, rsa_n) == 0)
     {
         free(rsa_n);
@@ -111,6 +122,7 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
         BN_free(bn_e);
         return NULL;
     }
+
     RSA_set0_key(rsa, bn_n, bn_e, NULL);
 
     return rsa;
@@ -143,9 +155,9 @@ int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, 
     struct Response response;
     int fd;
 
-    printf("%d, ", flen);
-    print_hex(from, flen);
-    printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
     if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
         return 0;
     //request = OPENSSL_zalloc(sizeof(struct Request));
@@ -180,9 +192,9 @@ int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, 
     struct Response response;
     int fd;
 
-    printf("%d, ", flen);
-    print_hex(from, flen);
-    printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
     if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
         return 0;
     //request = OPENSSL_zalloc(sizeof(struct Request));

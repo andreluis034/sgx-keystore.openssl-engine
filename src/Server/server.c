@@ -19,7 +19,7 @@ void handle_get_e_n(int fd, struct Request* request)
     char* rsa_n = sgx_rsa_get_n(request->message.rsa_get_e_n.keySlot);
     if (rsa_n == NULL)
         return;
-    
+    printf("rsa_n %s\n", rsa_n);
     int rsa_n_length = strlen(rsa_n);
     char* data =  malloc(sizeof(rsa_n_length) + rsa_n_length + 1);
     memset(data, 0, sizeof(rsa_n_length) + rsa_n_length + 1);
@@ -29,6 +29,7 @@ void handle_get_e_n(int fd, struct Request* request)
     free(rsa_n);
 
     char* rsa_e = sgx_rsa_get_e(request->message.rsa_get_e_n.keySlot);
+    printf("rsa_e %s\n", rsa_e);
     int rsa_e_length = strlen(rsa_e);
     data =  malloc(sizeof(rsa_e_length) + rsa_e_length + 1);
     memset(data, 0, sizeof(rsa_e_length) + rsa_e_length + 1);

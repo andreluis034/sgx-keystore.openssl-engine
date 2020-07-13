@@ -53,21 +53,3 @@ int keyhandle_dup(CRYPTO_EX_DATA *to, const CRYPTO_EX_DATA *from,
     return 1;
 }
 
-void *ex_data_dup(void *data) {
-    printf("[>] %s\n", __FUNCTION__);
-    char* keyhandle = (char*)data;
-    return strdup(keyhandle);
-}
-
-void ex_data_free(void *data) {
-    printf("[>] %s\n", __FUNCTION__);
-    char* keyhandle = (char*)data;
-    free(keyhandle);
-}
-
-void ex_data_clear_free(void *data) {
-    printf("[>] %s\n", __FUNCTION__);
-    char* keyhandle = (char*)data;
-    memset(data, '\0', strlen(keyhandle));
-    free(keyhandle);
-}
