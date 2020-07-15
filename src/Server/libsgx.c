@@ -2,6 +2,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <time.h>
 #include "libsgx.h"
 #include "Engine_u.h"
 
@@ -139,9 +141,9 @@ int sgx_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned 
     // CRYPTO_THREAD_write_lock(key->enclave->rwlock);
 
     //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    printf("%d, ", flen);
-    print_hex(from, flen);
-    printf(", %d, %d, %d\n", tlen, key_id, padding);
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", tlen, key_id, padding);
     if(tlen == 0)
     {
         // CRYPTO_THREAD_unlock(key->enclave->rwlock);
@@ -156,7 +158,9 @@ int sgx_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned 
         // CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
     }
-    fprintf(stderr, "enclave_private_encrypt ret: %d\n", ret);
+      time_t t = time(NULL);
+  struct tm tm = *localtime(&t);
+    fprintf(stdout, "[%02d:%02d:%02d]enclave_private_encrypt ret: %d\n", tm.tm_hour, tm.tm_min, tm.tm_sec, ret);
     // CRYPTO_THREAD_unlock(key->enclave->rwlock);
     return ret;
 }
@@ -168,9 +172,9 @@ int sgx_private_decrypt(int flen, const unsigned char *from, int tlen, unsigned 
     // CRYPTO_THREAD_write_lock(key->enclave->rwlock);
 
     //fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    printf("%d, ", flen);
-    print_hex(from, flen);
-    printf(", %d, %d, %d\n", tlen, key_id, padding);
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", tlen, key_id, padding);
     if(tlen == 0)
     {
         // CRYPTO_THREAD_unlock(key->enclave->rwlock);
@@ -185,7 +189,7 @@ int sgx_private_decrypt(int flen, const unsigned char *from, int tlen, unsigned 
         // CRYPTO_THREAD_unlock(key->enclave->rwlock);
         return -1;
     }
-    fprintf(stderr, "enclave_private_decrypt ret: %d\n", ret);
+    fprintf(stdout, "enclave_private_decrypt ret: %d\n", ret);
     // CRYPTO_THREAD_unlock(key->enclave->rwlock);
     return ret;
 }

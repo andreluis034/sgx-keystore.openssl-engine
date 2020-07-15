@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include "Include/sgx_keystore.h"
 #include "libsgx.h"
 
@@ -19,7 +20,7 @@ void handle_get_e_n(int fd, struct Request* request)
     char* rsa_n = sgx_rsa_get_n(request->message.rsa_get_e_n.keySlot);
     if (rsa_n == NULL)
         return;
-    printf("rsa_n %s\n", rsa_n);
+    // printf("rsa_n %s\n", rsa_n);
     int rsa_n_length = strlen(rsa_n);
     char* data =  malloc(sizeof(rsa_n_length) + rsa_n_length + 1);
     memset(data, 0, sizeof(rsa_n_length) + rsa_n_length + 1);
@@ -29,7 +30,7 @@ void handle_get_e_n(int fd, struct Request* request)
     free(rsa_n);
 
     char* rsa_e = sgx_rsa_get_e(request->message.rsa_get_e_n.keySlot);
-    printf("rsa_e %s\n", rsa_e);
+    // printf("rsa_e %s\n", rsa_e);
     int rsa_e_length = strlen(rsa_e);
     data =  malloc(sizeof(rsa_e_length) + rsa_e_length + 1);
     memset(data, 0, sizeof(rsa_e_length) + rsa_e_length + 1);
@@ -44,32 +45,32 @@ void handle_rsa_priv_enc(int fd, struct Request* request)
 {   
     int lwrite;
     struct Response response;
-    printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
+    //printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
 
     int result = sgx_private_encrypt(request->message.rsa_priv.flen, request->message.rsa_priv.from, request->message.rsa_priv.tlen, response.message.rsa_priv.to, request->message.rsa_priv.keySlot, request->message.rsa_priv.padding);
     response.message.rsa_priv.retValue = result; 
     lwrite = write(fd, &response, sizeof(response));
     (void)lwrite;
-    printf("%d\n", result);
+    //printf("%d\n", result);
 }
 
 void handle_rsa_priv_dec(int fd, struct Request* request)
 {   
     int lwrite;
     struct Response response;
-    printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
+    //printf("%d %d\n", request->message.rsa_priv.flen, request->message.rsa_priv.tlen);
 
     int result = sgx_private_decrypt(request->message.rsa_priv.flen, request->message.rsa_priv.from, request->message.rsa_priv.tlen, response.message.rsa_priv.to, request->message.rsa_priv.keySlot, request->message.rsa_priv.padding);
     response.message.rsa_priv.retValue = result; 
     lwrite = write(fd, &response, sizeof(response));
     (void)lwrite;
-    printf("%d\n", result);
+    //printf("%d\n", result);
 }
 
 
 void handle_message(int fd, struct Request* request)
 {
-    printf("Type: %d\n", request->type);
+    //printf("Type: %d\n", request->type);
 
     switch (request->type)
     {
@@ -140,12 +141,12 @@ int main(int argc, const char* argv[])
         perror("bind error");
         exit(-1);
     }
-
+    chmod(SGX_KEYSTORE_SOCKET_PATH, S_IRWXU | S_IRWXG | S_IRWXO);
     if (listen(fd, 256) == -1) {
         perror("listen error");
         exit(-1);
     }
-
+    
     while (1) {
         if ( (cl = accept(fd, NULL, NULL)) == -1) {
             perror("accept error");
