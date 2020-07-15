@@ -71,6 +71,7 @@ typedef struct ms_enclave_rsa_load_key_t {
 	int ms_length;
 	const char* ms_path;
 	size_t ms_path_len;
+	int ms_sealed;
 } ms_enclave_rsa_load_key_t;
 
 typedef struct ms_get_sealed_data_size_t {
@@ -460,7 +461,7 @@ static sgx_status_t SGX_CDECL sgx_enclave_rsa_load_key(void* pms)
 		}
 	}
 
-	ms->ms_retval = enclave_rsa_load_key((const unsigned char*)_in_keybuffer, _tmp_length, (const char*)_in_path);
+	ms->ms_retval = enclave_rsa_load_key((const unsigned char*)_in_keybuffer, _tmp_length, (const char*)_in_path, ms->ms_sealed);
 
 err:
 	if (_in_keybuffer) free(_in_keybuffer);

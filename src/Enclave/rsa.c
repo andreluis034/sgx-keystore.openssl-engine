@@ -4,7 +4,11 @@
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <string.h>
+#include "Engine_t.h"
 #define MAX_KEYS 10
+
+uint32_t get_decrypted_size( const uint8_t *sealed_blob, size_t data_size);
+sgx_status_t unseal_data(const uint8_t *sealed_blob, size_t data_size, uint8_t *clear, size_t clear_size);
 
 CRYPTO_RWLOCK *rwlock = NULL;
 //TODO add reference count?
@@ -266,7 +270,7 @@ void enclave_unload_key_from_enclave(int key_id)
 }
 
 //Loads a key and returns its id. If the key was already loaded the previously assigned id is returned
-int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path)
+int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path, int sealed)
 {
     //printf("[>] enclave_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
     if(keybuffer == NULL || path == NULL)
@@ -276,18 +280,47 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     CRYPTO_THREAD_write_lock(rwlock);
     EVP_PKEY* pk;
     RSA* rsa = NULL;
-    BIO* bio = BIO_new_mem_buf((void*)keybuffer, length);
+    BIO* bio =  NULL;
+    unsigned char* unsealed_buffer = NULL;
+    if(sealed)
+    {
+        int unsealed_size = get_decrypted_size(keybuffer, length);
+        if(unsealed_size == 0 )
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -9;
+        }
+        unsealed_buffer = malloc(unsealed_size + 1);
+        if(unsealed_buffer == NULL)
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -10;  
+        }
+        sgx_status_t status = unseal_data(keybuffer, length, unsealed_buffer, unsealed_size);
+        if (status != SGX_SUCCESS)
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -10;
+        }
+        bio = BIO_new_mem_buf((void*)unsealed_buffer, unsealed_size);
+    }
+    else 
+    {
+        bio = BIO_new_mem_buf((void*)keybuffer, length);
+    }
     if (bio == NULL)
     {
 	    CRYPTO_THREAD_unlock(rwlock);
         return -4;
     }
+
     PEM_read_bio_RSAPrivateKey(bio, &rsa, 0, NULL);
     BIO_free(bio);
+    if(unsealed_buffer) free(unsealed_buffer);
     if (rsa == NULL)
     {
 	    CRYPTO_THREAD_unlock(rwlock);
-        return -4;
+        return -8;
     }
     pk = EVP_PKEY_new();
     if (pk == NULL)

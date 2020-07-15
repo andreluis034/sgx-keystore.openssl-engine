@@ -47,3 +47,28 @@ sgx_status_t seal_data(uint8_t* clear, uint32_t clear_size, uint8_t* sealed_blob
     free(temp_sealed_buf);
     return err;
 }
+
+
+uint32_t get_decrypted_size( const uint8_t *sealed_blob, size_t data_size)
+{
+    ((void)data_size);
+    return sgx_get_encrypt_txt_len((const sgx_sealed_data_t *)sealed_blob);
+}
+
+
+sgx_status_t unseal_data(const uint8_t *sealed_blob, size_t data_size, uint8_t *clear, size_t clear_size)
+{
+    uint32_t decrypt_data_len = sgx_get_encrypt_txt_len((const sgx_sealed_data_t *)sealed_blob);
+    if (decrypt_data_len == UINT32_MAX)
+        return SGX_ERROR_UNEXPECTED;
+    if(decrypt_data_len > data_size || decrypt_data_len > clear_size)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+
+    sgx_status_t ret = sgx_unseal_data((const sgx_sealed_data_t *)sealed_blob, NULL, NULL, clear, &decrypt_data_len);
+    if (ret != SGX_SUCCESS)
+    {
+        return ret;
+    }
+    return ret;
+}

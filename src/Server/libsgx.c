@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 #include "libsgx.h"
 #include "Engine_u.h"
 
@@ -217,9 +218,12 @@ int sgx_load_key(const char* key_path)
         return -1;
     }
     fclose(fd);
+    char* ext = strrchr(key_path, '.');
+    int sealed = ext != NULL ? strcmp(".sealed", ext) == 0 : 0;
+    printf("extension %s %d\n", ext, sealed);
     int key_slot = -1;
     
-    sgx_status_t status = enclave_rsa_load_key(enclave_id, &key_slot, buffer, read, key_path);
+    sgx_status_t status = enclave_rsa_load_key(enclave_id, &key_slot, buffer, read, key_path, sealed);
     if (status != SGX_SUCCESS)
     {
         printf("Enclave returned 0x%x\n", status);

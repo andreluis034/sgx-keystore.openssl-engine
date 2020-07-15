@@ -45,6 +45,7 @@ typedef struct ms_enclave_rsa_load_key_t {
 	int ms_length;
 	const char* ms_path;
 	size_t ms_path_len;
+	int ms_sealed;
 } ms_enclave_rsa_load_key_t;
 
 typedef struct ms_get_sealed_data_size_t {
@@ -245,7 +246,7 @@ sgx_status_t enclave_rsa_get_e(sgx_enclave_id_t eid, int* retval, int key_id, ch
 	return status;
 }
 
-sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path)
+sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path, int sealed)
 {
 	sgx_status_t status;
 	ms_enclave_rsa_load_key_t ms;
@@ -253,6 +254,7 @@ sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsig
 	ms.ms_length = length;
 	ms.ms_path = path;
 	ms.ms_path_len = path ? strlen(path) + 1 : 0;
+	ms.ms_sealed = sealed;
 	status = sgx_ecall(eid, 7, &ocall_table_Engine, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
