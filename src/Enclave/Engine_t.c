@@ -73,6 +73,19 @@ typedef struct ms_enclave_rsa_load_key_t {
 	size_t ms_path_len;
 } ms_enclave_rsa_load_key_t;
 
+typedef struct ms_get_sealed_data_size_t {
+	uint32_t ms_retval;
+	uint32_t ms_data_size;
+} ms_get_sealed_data_size_t;
+
+typedef struct ms_seal_data_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_clear;
+	uint32_t ms_clear_size;
+	uint8_t* ms_sealed_blob;
+	uint32_t ms_data_size;
+} ms_seal_data_t;
+
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
 } ms_ocall_print_string_t;
@@ -455,11 +468,101 @@ err:
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_get_sealed_data_size(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_get_sealed_data_size_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_get_sealed_data_size_t* ms = SGX_CAST(ms_get_sealed_data_size_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+
+
+
+	ms->ms_retval = get_sealed_data_size(ms->ms_data_size);
+
+
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_seal_data(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_seal_data_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_seal_data_t* ms = SGX_CAST(ms_seal_data_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	uint8_t* _tmp_clear = ms->ms_clear;
+	uint32_t _tmp_clear_size = ms->ms_clear_size;
+	size_t _len_clear = _tmp_clear_size;
+	uint8_t* _in_clear = NULL;
+	uint8_t* _tmp_sealed_blob = ms->ms_sealed_blob;
+	uint32_t _tmp_data_size = ms->ms_data_size;
+	size_t _len_sealed_blob = _tmp_data_size;
+	uint8_t* _in_sealed_blob = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_clear, _len_clear);
+	CHECK_UNIQUE_POINTER(_tmp_sealed_blob, _len_sealed_blob);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_clear != NULL && _len_clear != 0) {
+		if ( _len_clear % sizeof(*_tmp_clear) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_clear = (uint8_t*)malloc(_len_clear);
+		if (_in_clear == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_clear, _len_clear, _tmp_clear, _len_clear)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_sealed_blob != NULL && _len_sealed_blob != 0) {
+		if ( _len_sealed_blob % sizeof(*_tmp_sealed_blob) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_sealed_blob = (uint8_t*)malloc(_len_sealed_blob)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_sealed_blob, 0, _len_sealed_blob);
+	}
+
+	ms->ms_retval = seal_data(_in_clear, _tmp_clear_size, _in_sealed_blob, _tmp_data_size);
+	if (_in_sealed_blob) {
+		if (memcpy_s(_tmp_sealed_blob, _len_sealed_blob, _in_sealed_blob, _len_sealed_blob)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_clear) free(_in_clear);
+	if (_in_sealed_blob) free(_in_sealed_blob);
+	return status;
+}
+
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[8];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[10];
 } g_ecall_table = {
-	8,
+	10,
 	{
 		{(void*)(uintptr_t)sgx_teste_ecall, 0, 0},
 		{(void*)(uintptr_t)sgx_enclave_init_rsa_lock, 0, 0},
@@ -469,22 +572,24 @@ SGX_EXTERNC const struct {
 		{(void*)(uintptr_t)sgx_enclave_rsa_get_n, 0, 0},
 		{(void*)(uintptr_t)sgx_enclave_rsa_get_e, 0, 0},
 		{(void*)(uintptr_t)sgx_enclave_rsa_load_key, 0, 0},
+		{(void*)(uintptr_t)sgx_get_sealed_data_size, 0, 0},
+		{(void*)(uintptr_t)sgx_seal_data, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[7][8];
+	uint8_t entry_table[7][10];
 } g_dyn_entry_table = {
 	7,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 
