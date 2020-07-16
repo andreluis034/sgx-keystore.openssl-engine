@@ -22,7 +22,10 @@ enclave {
         public int enclave_rsa_get_n(int key_id, [out, size=length] char* output, int length);
         public int enclave_rsa_get_e(int key_id, [out, size=length] char* output, int length);
 
-        public int enclave_rsa_load_key([in, size=length] const unsigned char * keybuffer, int length, [in,string ]const char* path);
+        public int enclave_rsa_load_key([in, size=length] const unsigned char * keybuffer, int length, [in,string ]const char* path, int sealed);
  
+        public uint32_t get_sealed_data_size(uint32_t data_size);
+		public sgx_status_t seal_data([in, size=clear_size]uint8_t* clear, uint32_t clear_size, [out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
+
     };
 };

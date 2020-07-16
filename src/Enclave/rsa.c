@@ -4,7 +4,11 @@
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <string.h>
+#include "Engine_t.h"
 #define MAX_KEYS 10
+
+uint32_t get_decrypted_size( const uint8_t *sealed_blob, size_t data_size);
+sgx_status_t unseal_data(const uint8_t *sealed_blob, size_t data_size, uint8_t *clear, size_t clear_size);
 
 CRYPTO_RWLOCK *rwlock = NULL;
 //TODO add reference count?
@@ -172,6 +176,13 @@ int enclave_rsa_private_encrypt(int flen, const unsigned char *from, int tlen, u
     
     return priv_enc(flen, from, to, (RSA*) rsa, padding);
 }
+void print_hex(const unsigned char* buffer, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        printf("%02X", buffer[i]);
+    }
+}
 
 //TODO handle other key types, currently only supports RSA
 int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsigned char *to, int key_id, int padding)
@@ -183,6 +194,11 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
         return -1;
     if(rwlock == NULL)
         return -1;
+    
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", tlen, key_id, padding);
+    
     CRYPTO_THREAD_write_lock(rwlock);
     stored_key* key = keys[key_id];
     if (key == NULL)
@@ -198,6 +214,7 @@ int enclave_private_encrypt(int flen, const unsigned char *from, int tlen, unsig
 	    CRYPTO_THREAD_unlock(rwlock);
         return -1;
     }
+    
     int ret = enclave_rsa_private_encrypt(flen, from, tlen, to, rsa, padding);
 	CRYPTO_THREAD_unlock(rwlock);
     return ret;
@@ -253,7 +270,7 @@ void enclave_unload_key_from_enclave(int key_id)
 }
 
 //Loads a key and returns its id. If the key was already loaded the previously assigned id is returned
-int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path)
+int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char* path, int sealed)
 {
     //printf("[>] enclave_rsa_load_key(%p, %d, %s)\n",keybuffer, length, path);
     if(keybuffer == NULL || path == NULL)
@@ -263,18 +280,47 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     CRYPTO_THREAD_write_lock(rwlock);
     EVP_PKEY* pk;
     RSA* rsa = NULL;
-    BIO* bio = BIO_new_mem_buf((void*)keybuffer, length);
+    BIO* bio =  NULL;
+    unsigned char* unsealed_buffer = NULL;
+    if(sealed)
+    {
+        int unsealed_size = get_decrypted_size(keybuffer, length);
+        if(unsealed_size == 0 )
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -9;
+        }
+        unsealed_buffer = malloc(unsealed_size + 1);
+        if(unsealed_buffer == NULL)
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -10;  
+        }
+        sgx_status_t status = unseal_data(keybuffer, length, unsealed_buffer, unsealed_size);
+        if (status != SGX_SUCCESS)
+        {
+	        CRYPTO_THREAD_unlock(rwlock);
+            return -10;
+        }
+        bio = BIO_new_mem_buf((void*)unsealed_buffer, unsealed_size);
+    }
+    else 
+    {
+        bio = BIO_new_mem_buf((void*)keybuffer, length);
+    }
     if (bio == NULL)
     {
 	    CRYPTO_THREAD_unlock(rwlock);
         return -4;
     }
+
     PEM_read_bio_RSAPrivateKey(bio, &rsa, 0, NULL);
     BIO_free(bio);
+    if(unsealed_buffer) free(unsealed_buffer);
     if (rsa == NULL)
     {
 	    CRYPTO_THREAD_unlock(rwlock);
-        return -4;
+        return -8;
     }
     pk = EVP_PKEY_new();
     if (pk == NULL)
@@ -294,8 +340,9 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     size_t availableSlot = -1;
     for (size_t i = 0; i < MAX_KEYS; i++)
     {
-        if (keys[i] != NULL && EVP_PKEY_cmp(pk, keys[i]->pkey) == 0)
+        if (keys[i] != NULL && BN_cmp(RSA_get0_n(rsa), RSA_get0_n(EVP_PKEY_get0_RSA(keys[i]->pkey))) == 0)
         {
+            EVP_PKEY_free(pk);
 	        CRYPTO_THREAD_unlock(rwlock);
             return i;
         }
@@ -305,7 +352,6 @@ int enclave_rsa_load_key(const unsigned char * keybuffer, int length, const char
     //No more space available
     if (availableSlot == -1)
     {
-        RSA_free(rsa);
         EVP_PKEY_free(pk);
 	    CRYPTO_THREAD_unlock(rwlock);
         return -1;

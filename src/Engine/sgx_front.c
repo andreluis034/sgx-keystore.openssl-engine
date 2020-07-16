@@ -2,212 +2,119 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <openssl/pem.h>
-#include "Engine_u.h"
+#include <string.h>
 #include "methods.h"
 #include "engine_id.h"
-typedef struct _sgx_errlist_t {
-    sgx_status_t err;
-    const char *msg;
-    const char *sug; /* Suggestion */
-} sgx_errlist_t;
-
-
-static sgx_errlist_t sgx_errlist[] = {
-    {
-        SGX_ERROR_UNEXPECTED,
-        "Unexpected error occurred.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_PARAMETER,
-        "Invalid parameter.",
-        NULL
-    },
-    {
-        SGX_ERROR_OUT_OF_MEMORY,
-        "Out of memory.",
-        NULL
-    },
-    {
-        SGX_ERROR_ENCLAVE_LOST,
-        "Power transition occurred.",
-        "Please refer to the sample \"PowerTransition\" for details."
-    },
-    {
-        SGX_ERROR_INVALID_ENCLAVE,
-        "Invalid enclave image.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_ENCLAVE_ID,
-        "Invalid enclave identification.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_SIGNATURE,
-        "Invalid enclave signature.",
-        NULL
-    },
-    {
-        SGX_ERROR_OUT_OF_EPC,
-        "Out of EPC memory.",
-        NULL
-    },
-    {
-        SGX_ERROR_NO_DEVICE,
-        "Invalid SGX device.",
-        "Please make sure SGX module is enabled in the BIOS, and install SGX driver afterwards."
-    },
-    {
-        SGX_ERROR_MEMORY_MAP_CONFLICT,
-        "Memory map conflicted.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_METADATA,
-        "Invalid enclave metadata.",
-        NULL
-    },
-    {
-        SGX_ERROR_DEVICE_BUSY,
-        "SGX device was busy.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_VERSION,
-        "Enclave version was invalid.",
-        NULL
-    },
-    {
-        SGX_ERROR_INVALID_ATTRIBUTE,
-        "Enclave was not authorized.",
-        NULL
-    },
-    {
-        SGX_ERROR_ENCLAVE_FILE_ACCESS,
-        "Can't open enclave file.",
-        NULL
-    },
-};
+#include "sgx_keystore.h"
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
+#include <sys/un.h>
 
 struct SGX_Enclave_st {
-#if OPENSSL_VERSION_NUMBER >= 0x10100004L && !defined(LIBRESSL_VERSION_NUMBER)
 	CRYPTO_RWLOCK *rwlock;
-#else
-	int rwlock;
-#endif
-	const char* enclave_binary_path;
-	sgx_enclave_id_t enclave_id;
-    pid_t pid;
-
+	const char* socket_path;
+    
 };
 
-
-sgx_status_t sgx_init_enclave(const char* enclave_file, SGX_ENCLAVE** enclave_out)
+int connect_to_keystore(const char* keystore_socket)
 {
+    struct sockaddr_un addr;
+    int fd;
+    if ( (fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        perror("socket error");
+        return -1;
+    }
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, keystore_socket, sizeof(addr.sun_path)-1);
+
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        fprintf(stderr, "Could not connect to socket: %s\n", strerror(errno));
+        return -1;
+    }
+    return fd;
+}
+
+int sgx_init_enclave(const char* keystore_socket, SGX_ENCLAVE** enclave_out)
+{
+    SGX_ENCLAVE* enclave;
+    int fd;
     if (enclave_out == NULL)
-    {
-        return SGX_ERROR_INVALID_PARAMETER;
-    }
-    *enclave_out = NULL;
-    SGX_ENCLAVE* enclave = (SGX_ENCLAVE*)malloc(sizeof(SGX_ENCLAVE));
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    sgx_enclave_id_t enclave_id = 0;
- 
+        return 0;
+    if ((fd = connect_to_keystore(keystore_socket)) == -1)
+        return 0;
 
-    /* Call sgx_create_enclave to initialize an enclave instance */
-    /* Debug Support: set 2nd parameter to 1 */
-    ret = sgx_create_enclave(enclave_file, SGX_DEBUG_FLAG, NULL, NULL, &enclave_id, NULL);
-    if (ret != SGX_SUCCESS) {
-        free(enclave);
-        return ret;
-    }
-    printf("Created enclave with id %ld\n", enclave_id);
+    close(fd);
+    *enclave_out = enclave = (SGX_ENCLAVE*)malloc(sizeof(SGX_ENCLAVE));
+
+    enclave->rwlock = CRYPTO_THREAD_lock_new();
+    enclave->socket_path = keystore_socket;
     
-    teste_ecall(enclave_id);
-    enclave_init_rsa_lock(enclave_id);
-
-    enclave->rwlock = CRYPTO_THREAD_lock_new();    
-    enclave->enclave_binary_path = enclave_file;
-    enclave->enclave_id = enclave_id;
-    enclave->pid = getpid();
-    *enclave_out = enclave;
-    return SGX_SUCCESS;
+    return 1;
 }
 
-
-const char* sgx_get_error_message(sgx_status_t status)
-{
-    size_t idx = 0;
-    size_t ttl = sizeof sgx_errlist/sizeof sgx_errlist[0];
-
-    for (idx = 0; idx < ttl; idx++) {
-        if(status == sgx_errlist[idx].err) {
-            return sgx_errlist[idx].msg;
-        }
-    }
-    return NULL;
-
-}
-
-sgx_status_t sgx_destroy_enclave_wrapper(SGX_ENCLAVE* enclave)
-{
-    sgx_enclave_id_t id = enclave->enclave_id;
-    printf("Destroying enclave %ld\n", id);
-    CRYPTO_THREAD_lock_free(enclave->rwlock);
-    free(enclave);
-    return sgx_destroy_enclave(id);
-}
 
 RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
 {
-    int length;
-    char *rsa_n, *rsa_e;
-    sgx_status_t status;
+    int length, fd, lwrite;
+    char *rsa_n, *rsa_e, *data;
+    int rsa_n_length, rsa_e_length;
     BIGNUM *bn_n, *bn_e;
     RSA* rsa;
-    status = enclave_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
-    if (status != SGX_SUCCESS || length == 0)
-        return NULL;
+    struct Request* request;
 
-    rsa_n = OPENSSL_zalloc(length + 1);    
-    status = enclave_rsa_get_n(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_n, length + 1);
-    if (status != SGX_SUCCESS || length == 0)
+    if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
+        return 0;
+    request = OPENSSL_zalloc(sizeof(struct Request));
+    request->type = rsa_get_e_n;
+    request->message.rsa_get_e_n.keySlot = sgx_key->keyId;
+    lwrite = write(fd, request, sizeof(struct Request));
+    data = malloc(1024*2);//Should be enough for all keys?
+    if ( (length = read(fd, data, 1024*2)) < 0)
     {
-        OPENSSL_free(rsa_n);
+        free(data);
         return NULL;
     }
-
-    status = enclave_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, NULL, 0);
-    if (status != SGX_SUCCESS || length == 0)
+    rsa_n_length = *(int*)data;
+    rsa_n = strdup(data + sizeof(rsa_n_length));
+    if (length > rsa_n_length + sizeof(rsa_n_length) + 1) // 1 -> Null terminator
     {
-        OPENSSL_free(rsa_n);
-        return NULL;
+        rsa_e_length = *(int*)(data + rsa_n_length + sizeof(rsa_n_length));
+        rsa_e = strdup(data + rsa_n_length + sizeof(rsa_n_length) + 1 + sizeof(rsa_e_length));
+        //TODO read remainig if not done?
     }
-
-    rsa_e = OPENSSL_zalloc(length + 1);    
-    status = enclave_rsa_get_e(sgx_key->enclave->enclave_id, &length, sgx_key->keyId, rsa_e, length + 1);
-    if (status != SGX_SUCCESS || length == 0)
+    else
     {
-        OPENSSL_free(rsa_n);
-        OPENSSL_free(rsa_e);
-        return NULL;
+        if ((length = read(fd, data, 1024*2)) < 0)
+        {
+            free(data);
+            free(rsa_n);
+            return NULL;
+        }
+        rsa_e_length = *(int*)(data);
+        rsa_e = strdup(data + sizeof(rsa_e_length));
     }
+    
+
     if ((bn_n = BN_new()) == NULL || BN_hex2bn(&bn_n, rsa_n) == 0)
     {
-        OPENSSL_free(rsa_n);
-        OPENSSL_free(rsa_e);
+        free(rsa_n);
+        free(rsa_e);
+        free(data);
         return NULL;
     }
     if ((bn_e = BN_new()) == NULL || BN_hex2bn(&bn_e, rsa_e) == 0)
     {
+        free(rsa_n);
+        free(rsa_e);
+        free(data);
         BN_free(bn_n);
-        OPENSSL_free(rsa_n);
-        OPENSSL_free(rsa_e);
         return NULL;
     }
-    OPENSSL_free(rsa_n);
-    OPENSSL_free(rsa_e);
+    free(rsa_n);
+    free(rsa_e);
+    free(data);
+
 	rsa = RSA_new();
     if(rsa == NULL)
     {
@@ -215,49 +122,11 @@ RSA* sgx_key_get_rsa(SGX_KEY* sgx_key)
         BN_free(bn_e);
         return NULL;
     }
+
     RSA_set0_key(rsa, bn_n, bn_e, NULL);
 
     return rsa;
 
-}
-
-int sgx_handle_forked(SGX_KEY* sgx_key)
-{
-    sgx_status_t status;
-    SGX_ENCLAVE* new_enclave;
-    SGX_KEY* new_key;
-    if (sgx_key->pid == getpid())
-        return 1;
-
-    fprintf(stderr, "[%d] received key from different pid(%d)\n", getpid(), sgx_key->pid);
-    
-    if (sgx_key->enclave->pid != getpid())
-    {
-        fprintf(stderr, "[%d] enclave not loaded in current process\n", getpid());
-        sleep(5);
-        status = sgx_init_enclave(ENCLAVE_PATH, &new_enclave);
-        if (status != SGX_SUCCESS)
-        {
-            fprintf(stderr, "[%d] Failed to load enclave: 0x%x\n", getpid(), status);
-            return 0;
-        }
-        //Keep using the data in the old enclave struct
-        CRYPTO_THREAD_lock_free(new_enclave->rwlock);
-        sgx_key->enclave->pid = new_enclave->pid;
-        sgx_key->enclave->enclave_id = new_enclave->enclave_id;
-        sgx_key->enclave->enclave_binary_path = new_enclave->enclave_binary_path;
-        free(new_enclave);        
-    }
-    new_key = sgx_load_key(sgx_key->enclave, sgx_key->label);
-    if(new_key == NULL)
-        return 0;
-
-    sgx_key->keyId = new_key->keyId;
-    sgx_key->pid = new_key->pid;
-
-    OPENSSL_free(new_key);
-
-    return 1;
 }
 
 //currently only support RSA
@@ -273,132 +142,134 @@ int sgx_get_key_size(SGX_KEY* key)
 
     return RSA_size(rsa);    
 }
-
-int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+void print_hex(const unsigned char* buffer, int n)
 {
-    sgx_status_t status;
-    int ret;
-  
-    fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    if (!sgx_handle_forked(key))
-        return -1;
-    
-
-    if (key == NULL)
-        return -1;
-    
-    int tlen = flen;
-    if(tlen == 0)
-        return -1;
-
-
-    status = enclave_private_decrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
-    if(status != SGX_SUCCESS)
+    for (int i = 0; i < n; i++)
     {
-        fprintf(stderr, "enclave_private_decrypt ecall status: 0x%x\n", status);
-        return -1;
+        printf("%02X", buffer[i]);
     }
-    return ret;
 }
-
-int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* key, int padding)
+int sgx_private_decrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
-    sgx_status_t status;
-    int ret;
+    struct Request request;
+    struct Response response;
+    int fd;
 
-    fprintf(stderr, "[%d] %s(%d, %p, %p, (id: %d, pid: %d), %d)\n",getpid(), __FUNCTION__, flen, from, to, key->keyId, key->enclave->pid, padding);
-    if (!sgx_handle_forked(key))
-        return -1;
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
+        return 0;
+    //request = OPENSSL_zalloc(sizeof(struct Request));
+    //response = OPENSSL_zalloc(sizeof(struct Response));
+    request.type = rsa_priv_dec;
+    request.message.rsa_priv.flen = flen;
+    memcpy(request.message.rsa_priv.from, from, flen);
+    request.message.rsa_priv.keySlot = sgx_key->keyId;
+    request.message.rsa_priv.padding = padding;
+    request.message.rsa_priv.tlen = flen;
 
-    if (key == NULL)
-        return -1;
-    
-    int tlen = sgx_get_key_size(key);   
-    if(tlen == 0)
-        return -1;
-
-    fprintf(stderr, "[%d] key size: %d\n", getpid(), tlen);
-    status = enclave_private_encrypt(key->enclave->enclave_id, &ret, flen, from, tlen, to, key->keyId, padding);
-    if(status != SGX_SUCCESS)
+    int lwrite = write(fd, &request, sizeof(struct Request));
+    if (lwrite != sizeof(struct Request))
     {
-        fprintf(stderr, "enclave_private_encrypt ecall status: 0x%x\n", status);
         return -1;
     }
-    return ret;
+    int lread = read(fd, &response, sizeof(struct Response));
+    if (lread != sizeof(struct Response))
+    {
+        return -1;
+    }
+
+    close(fd);
+    memcpy(to, response.message.rsa_priv.to, response.message.rsa_priv.retValue); 
+    return response.message.rsa_priv.retValue;
 }
 
 
-void sgx_unload_key(SGX_KEY* key)
+int sgx_private_encrypt(int flen, const unsigned char *from, unsigned char *to, SGX_KEY* sgx_key, int padding)
 {
-    if(key == NULL)
-        return;
-    sgx_status_t status = enclave_unload_key_from_enclave(key->enclave->enclave_id, key->keyId);
-    if(status != SGX_SUCCESS)
-    {
-        printf("[-] Failed to unload SGX_KEY %x\n", status);
-    }
-    free(key);
+    struct Request request;
+    struct Response response;
+    int fd;
 
+    // printf("%d, ", flen);
+    // print_hex(from, flen);
+    // printf(", %d, %d, %d\n", sgx_get_key_size(sgx_key),  sgx_key->keyId, padding);
+    if ((fd = connect_to_keystore(sgx_key->enclave->socket_path)) == -1)
+        return 0;
+    //request = OPENSSL_zalloc(sizeof(struct Request));
+    //response = OPENSSL_zalloc(sizeof(struct Response));
+    request.type = rsa_priv_enc;
+    request.message.rsa_priv.flen = flen;
+    memcpy(request.message.rsa_priv.from, from, flen);
+    request.message.rsa_priv.keySlot = sgx_key->keyId;
+    request.message.rsa_priv.padding = padding;
+    request.message.rsa_priv.tlen = sgx_get_key_size(sgx_key);
+
+    int lwrite = write(fd, &request, sizeof(struct Request));
+    if (lwrite != sizeof(struct Request))
+    {
+        return -1;
+    }
+    int lread = read(fd, &response, sizeof(struct Response));
+    if (lread != sizeof(struct Response))
+    {
+        return -1;
+    }
+
+    close(fd);
+    memcpy(to, response.message.rsa_priv.to, response.message.rsa_priv.retValue); 
+    return response.message.rsa_priv.retValue;
 }
+
 
 SGX_KEY* sgx_load_key(SGX_ENCLAVE* enclave, const char* key_path)
 {
-    SGX_KEY* sgx_key = (SGX_KEY*)OPENSSL_zalloc(sizeof(SGX_KEY));
-    if(sgx_key == NULL)
+    int lwrite, lread;
+    int key_slot;
+    int fd;
+    struct Request* request;
+    SGX_KEY* sgx_key;
+
+    request = OPENSSL_zalloc(sizeof(struct Request));
+    if (request == NULL)
         return NULL;
-    FILE* fd  = fopen(key_path, "rb");
-    if (fd == NULL)
+    sgx_key = OPENSSL_zalloc(sizeof(SGX_KEY));
+    if (sgx_key == NULL)
     {
-        fprintf(stderr, "[%d] Failed to open file from disk\n", getpid());
-        OPENSSL_free(sgx_key);
+        OPENSSL_free(request);
         return NULL;
     }
-
-    struct stat st;
-    stat(key_path, &st);
-    size_t size = st.st_size;
-
-    unsigned char* buffer = malloc(size);
-    size_t read = fread(buffer, 1, size, fd);
-
-   // fclose(fd);
-    if(read <= 0)
-    {
-        OPENSSL_free(sgx_key);
-        return NULL;
-    }
-
-    int key_slot = -1;
     
-    sgx_status_t status = enclave_rsa_load_key(enclave->enclave_id, &key_slot, buffer, read, key_path);
-    if (status != SGX_SUCCESS)
-    {
-        OPENSSL_free(sgx_key);
+    if ((fd = connect_to_keystore(enclave->socket_path)) == -1)
         return NULL;
-    }
-    if (key_slot < 0)
-    {
-        fprintf(stderr, "[%d] Failed to load key in SGX, error code: %d\n", getpid(), key_slot);
-        OPENSSL_free(sgx_key);
-        return NULL;
-    }
-    fprintf(stderr, "[%d] Loaded key into slot %d\n", getpid(), key_slot);
+
     
+    request->type = load_key;
+    OPENSSL_strlcpy(request->message.load_key.keyId, key_path, sizeof(request->message.load_key.keyId));
+
+    lwrite = write(fd, request, sizeof(struct Request));
+    
+    if (lwrite <= 0)
+    {
+        OPENSSL_free(sgx_key);
+        OPENSSL_free(request);
+        return NULL;
+    }
+    
+    lread = read(fd, &key_slot, sizeof(key_slot));
+
+    if (lread <= 0)
+    {
+        OPENSSL_free(sgx_key);
+        OPENSSL_free(request);
+        return NULL;
+    }
+
     sgx_key->enclave = enclave;
     sgx_key->keyId = key_slot;
-    sgx_key->pid = enclave->pid;
-    OPENSSL_strlcpy((char*)sgx_key->label, key_path, BUFSIZ);
+    sgx_key->label = key_path;
     
-    
-    //teste_ecall(enclave->enclave_id);
-    //printf("%s\n", buffer);
-    //PEM_read_bio_PrivateKey(bio, &pk, NULL, NULL);
-
-  /*  sgx_key = OPENSSL_zalloc(sizeof(SGX_KEY));
-    OPENSSL_strlcpy((char*)sgx_key->label, key_path, BUFSIZ);
-    sgx_key->enclave = enclave;*/
-
     return sgx_key;
-
 }
 

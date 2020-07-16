@@ -8,7 +8,7 @@
 
 int keystore_rsa_priv_enc(int flen, const unsigned char* from, unsigned char* to, RSA* rsa, int padding) 
 {
-    fprintf(stderr, "%s(%d, %p, %p, %p, %d)\n", __FUNCTION__, flen, from, to, rsa, padding);
+    //fprintf(stderr, "%s(%d, %p, %p, %p, %d)\n", __FUNCTION__, flen, from, to, rsa, padding);
 
     int (*priv_enc) (int flen, const unsigned char *from,
 		unsigned char *to, RSA *rsa, int padding) = NULL;
@@ -22,8 +22,12 @@ int keystore_rsa_priv_enc(int flen, const unsigned char* from, unsigned char* to
     }
 
     int retVal = sgx_private_encrypt(flen, from, to, sgx_key, padding);
+    if (retVal == -1)
+    {
         fprintf(stderr, "sgx_key=%p keystore_rsa_priv_enc => returning %d %p len %llu ", sgx_key, retVal, to,
             (unsigned long long) RSA_size(rsa));
+    }
+
 
 
     return retVal;
@@ -31,7 +35,7 @@ int keystore_rsa_priv_enc(int flen, const unsigned char* from, unsigned char* to
 
 int keystore_rsa_priv_dec(int flen, const unsigned char* from, unsigned char* to, RSA* rsa, int padding) 
 {
-    fprintf(stderr, "%s(%d, %p, %p, %p, %d)", __FUNCTION__, flen, from, to, rsa, padding);
+    //fprintf(stderr, "%s(%d, %p, %p, %p, %d)", __FUNCTION__, flen, from, to, rsa, padding);
     int (*priv_dec) (int flen, const unsigned char *from,
 		unsigned char *to, RSA *rsa, int padding) = NULL;
 	
@@ -45,8 +49,12 @@ int keystore_rsa_priv_dec(int flen, const unsigned char* from, unsigned char* to
 
 
     int retVal = sgx_private_decrypt(flen, from, to, sgx_key, padding);
+    if (retVal == -1)
+    {
         fprintf(stderr, "sgx_key=%p sgx_private_decrypt => returning %d %p len %llu ", sgx_key, retVal, to,
             (unsigned long long) flen);
+    }
+    
 
 
     return retVal;

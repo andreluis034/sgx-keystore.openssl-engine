@@ -52,7 +52,9 @@ sgx_status_t enclave_private_encrypt(sgx_enclave_id_t eid, int* retval, int flen
 sgx_status_t enclave_private_decrypt(sgx_enclave_id_t eid, int* retval, int flen, const unsigned char* frm, int tlen, unsigned char* to, int key_id, int padding);
 sgx_status_t enclave_rsa_get_n(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
 sgx_status_t enclave_rsa_get_e(sgx_enclave_id_t eid, int* retval, int key_id, char* output, int length);
-sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path);
+sgx_status_t enclave_rsa_load_key(sgx_enclave_id_t eid, int* retval, const unsigned char* keybuffer, int length, const char* path, int sealed);
+sgx_status_t get_sealed_data_size(sgx_enclave_id_t eid, uint32_t* retval, uint32_t data_size);
+sgx_status_t seal_data(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* clear, uint32_t clear_size, uint8_t* sealed_blob, uint32_t data_size);
 
 #ifdef __cplusplus
 }

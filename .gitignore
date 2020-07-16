@@ -63,3 +63,10 @@ src/testkey.pem.pub
 src/key.bin
 src/key.bin.enc
 src/key.bin2
+src/keystore_server
+src/signature.bin2
+src/signature.bin
+
+*.pem
+*.sealed
+utility
