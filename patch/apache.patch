@@ -1,0 +1,12 @@
+--- ssl_util.c      2020-07-16 09:28:12.084116397 +0100
++++ ssl_util.c.sgxkeystore  2020-07-16 09:27:25.444073743 +0100
+@@ -477,7 +477,7 @@
+ {
+ #if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_INIT)
+     /* ### Can handle any other special ENGINE key names here? */
+-    return strncmp(name, "pkcs11:", 7) == 0;
++    return strncmp(name, "pkcs11:", 7) == 0 
++           || strncmp(name, "sgxkeystore:", 12) == 0;
+ #else
+     return 0;
+ #endif
