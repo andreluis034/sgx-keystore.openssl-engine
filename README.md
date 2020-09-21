@@ -4,6 +4,7 @@ An OpenSSL engine implementation that utilizes a SGX keystore server. Current im
 
 ### Requirements
 * An Intel SGX capable CPU
+* [Intel(R) Software Guard Extensions for Linux* OS](https://github.com/intel/linux-sgx)
 * [Intel SGX SSL](https://github.com/intel/intel-sgx-ssl)
 * OpenSSL 1.1+ 
 
