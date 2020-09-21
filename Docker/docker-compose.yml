@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+  aesm:
+    image: sgx_aesm
+    devices:
+      - /dev/isgx
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+    stdin_open: true
+    tty: true
+    environment:
+      - http_proxy
+      - https_proxy
+
+  keystore:
+    image: sgx_keystore
+    depends_on:
+      - aesm
+    devices:
+      - /dev/isgx
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+      - /tmp/sgxkeystored/:/var/run/sgx-keystore
+      - /docker-volumes/httpd-sgx/keystore:/opt/keystore/keys
+    stdin_open: true
+    tty: true
+
+  apache:
+    image: apache
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - keystore
+    devices:
+      - /dev/isgx
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+      - /tmp/sgxkeystored/:/var/run/sgx-keystore
+      - /docker-volumes/httpd-sgx/conf:/opt/httpd/conf
+      - /docker-volumes/httpd-sgx/htdocs:/opt/httpd/htdocs
+      - /docker-volumes/httpd-sgx/logs:/opt/httpd/logs
+    stdin_open: true
+    tty: true
