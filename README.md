@@ -2,6 +2,9 @@
  
 An OpenSSL engine implementation that utilizes a SGX keystore server. Current implementation only supports RSA keys up to 4096 bits.
 
+The design, implementation and evaluation of the system is described in our Computer & Security journal 2021 [paper](https://jresende.github.io/paper/Hardening_SGX.pdf).
+
+
 ### Requirements
 * An Intel SGX capable CPU
 * [Intel(R) Software Guard Extensions for Linux* OS](https://github.com/intel/linux-sgx)
